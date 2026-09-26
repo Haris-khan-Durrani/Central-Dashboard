@@ -12,6 +12,7 @@ import {
   Award,
   XCircle,
   GitMerge,
+  Calendar,
 } from 'lucide-react';
 
 export interface AgentData {
@@ -34,6 +35,8 @@ export interface AgentData {
   tasksOverdue: number;
   callsCount: number;
   whatsappCount: number;
+  bookingsCount?: number;
+  bookingsToday?: number;
   isLive: boolean;
   stageBreakdown?: Record<string, number>;
 }
@@ -42,6 +45,7 @@ interface AgentCardsGridProps {
   agents: AgentData[];
   currency: string;
   showCallStats?: boolean;
+  showBookings?: boolean;
   onViewAgentReport: (agent: AgentData) => void;
 }
 
@@ -49,6 +53,7 @@ export default function AgentCardsGrid({
   agents,
   currency,
   showCallStats = false,
+  showBookings = true,
   onViewAgentReport,
 }: AgentCardsGridProps) {
   const [sortBy, setSortBy] = useState<'revenue' | 'conversion' | 'leads'>('revenue');
@@ -251,9 +256,31 @@ export default function AgentCardsGrid({
               </div>
             </div>
 
-            {/* Bottom Pinned Section: Activity & Tasks + Action Trigger Button */}
-            <div className="mt-auto pt-2">
-              <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100 mb-2.5 text-xs text-gray-600">
+            {/* Bottom Pinned Section: Bookings & Activity & Tasks + Action Trigger Button */}
+            <div className="mt-auto pt-2 space-y-2">
+              {/* Bookings / Appointments Strip if enabled */}
+              {showBookings && (
+                <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/60 rounded-xl px-2.5 py-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 font-semibold text-blue-900">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Bookings</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-600">
+                      Total: <strong className="text-gray-900">{agent.bookingsCount || 0}</strong>
+                    </span>
+                    {(agent.bookingsToday || 0) > 0 ? (
+                      <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-extrabold rounded-md shadow-sm">
+                        {agent.bookingsToday} Today
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 font-medium">0 today</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100 text-xs text-gray-600">
                 {showCallStats ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">

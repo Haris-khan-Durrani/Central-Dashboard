@@ -1,7 +1,8 @@
 import prisma from '../db';
-import { getGhlClientForLocation } from './client-factory';
+import { getGhlClientForLocation, GhlClient } from './client-factory';
 import { decryptString } from '../crypto';
 import { fastCache } from '../cache';
+import { normalizeLeadSource } from '../kpi/engine';
 
 export async function syncLocationData(
   locationId: string,
@@ -155,7 +156,8 @@ export async function syncLocationData(
         const wonAt = status === 'won' ? new Date(opp.lastStatusChangeAt || updatedAt) : null;
         const lostAt = (status === 'lost' || status === 'abandoned') ? new Date(opp.lastStatusChangeAt || updatedAt) : null;
         const stageEnteredAt = opp.lastStageChangeAt ? new Date(opp.lastStageChangeAt) : createdAt;
-        const source = opp.source || opp.attributions?.[0]?.medium || 'Direct';
+        const rawSource = opp.source || opp.attributions?.[0]?.medium || 'Direct';
+        const source = normalizeLeadSource(rawSource).displayName;
 
         await prisma.opportunity.upsert({
           where: { locationId_ghlOpportunityId: { locationId, ghlOpportunityId: ghlOppId } },
@@ -253,6 +255,92 @@ export async function syncLocationData(
           assignedTo: t.assignedTo || null,
         },
       });
+    }
+
+    // 5. Sync Appointments / Bookings if enabled
+    let appointmentsCount = 0;
+    if (loc.enableBookings !== false) {
+      try {
+        const client = new GhlClient({ locationId, privateKey: token });
+        const events = await client.getCalendarEvents();
+        if (Array.isArray(events) && events.length > 0) {
+          appointmentsCount = events.length;
+          for (const ev of events) {
+            const ghlAppointmentId = String(ev.id || ev._id || ev.appointmentId || '');
+            if (!ghlAppointmentId) continue;
+
+            const startTime = ev.startTime ? new Date(ev.startTime) : (ev.start ? new Date(ev.start) : new Date());
+            const endTime = ev.endTime ? new Date(ev.endTime) : (ev.end ? new Date(ev.end) : null);
+            const status = String(ev.status || ev.appointmentStatus || 'confirmed').toLowerCase();
+            const meetingLocationType = String(ev.meetingLocationType || ev.locationType || ev.meetingType || 'zoom').toLowerCase();
+
+            let contactId: number | null = null;
+            let contactName = ev.contactName || (ev.contact ? `${ev.contact.firstName || ''} ${ev.contact.lastName || ''}`.trim() : null) || null;
+            let contactPhone = ev.contactPhone || ev.contact?.phone || null;
+            let contactEmail = ev.contactEmail || ev.contact?.email || null;
+
+            if (ev.contactId) {
+              const matchedContact = await prisma.contact.findUnique({
+                where: { locationId_ghlContactId: { locationId, ghlContactId: String(ev.contactId) } },
+                select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+              });
+              if (matchedContact) {
+                contactId = matchedContact.id;
+                if (!contactName) contactName = `${matchedContact.firstName || ''} ${matchedContact.lastName || ''}`.trim();
+                if (!contactPhone) contactPhone = matchedContact.phone;
+                if (!contactEmail) contactEmail = matchedContact.email;
+              }
+            }
+
+            const assignedTo = String(ev.assignedUserId || ev.userId || ev.calendarOwner || '');
+
+            await prisma.appointment.upsert({
+              where: {
+                locationId_ghlAppointmentId: {
+                  locationId,
+                  ghlAppointmentId,
+                },
+              },
+              update: {
+                title: ev.title || 'Meeting',
+                contactId,
+                contactName,
+                contactPhone,
+                contactEmail,
+                assignedTo: assignedTo || null,
+                calendarId: ev.calendarId ? String(ev.calendarId) : null,
+                calendarName: ev.calendarName || null,
+                startTime,
+                endTime,
+                status,
+                meetingLocationType,
+                meetingUrl: ev.meetingUrl || ev.joinUrl || null,
+                notes: ev.notes || ev.description || null,
+              },
+              create: {
+                locationId,
+                ghlAppointmentId,
+                title: ev.title || 'Meeting',
+                contactId,
+                contactName,
+                contactPhone,
+                contactEmail,
+                assignedTo: assignedTo || null,
+                calendarId: ev.calendarId ? String(ev.calendarId) : null,
+                calendarName: ev.calendarName || null,
+                startTime,
+                endTime,
+                status,
+                meetingLocationType,
+                meetingUrl: ev.meetingUrl || ev.joinUrl || null,
+                notes: ev.notes || ev.description || null,
+              },
+            });
+          }
+        }
+      } catch (calErr) {
+        console.warn(`Sync warning: Could not sync calendar events for ${locationId}:`, calErr);
+      }
     }
 
     // Mark sync success

@@ -17,6 +17,7 @@ export interface CommandCenterData {
     name: string;
     currency: string;
     timezone: string;
+    enableBookings: boolean;
     lastSyncAt: string | null;
   };
   summary: {
@@ -62,8 +63,42 @@ export interface CommandCenterData {
     tasksOverdue: number;
     callsCount: number;
     whatsappCount: number;
+    bookingsCount: number;
+    bookingsToday: number;
     isLive: boolean;
     stageBreakdown: Record<string, number>;
+  }>;
+  upcomingBookings: Array<{
+    id: number;
+    title: string;
+    contactName: string;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    assignedTo: string | null;
+    agentName: string;
+    agentAvatar: string | null;
+    startTime: string;
+    endTime: string | null;
+    status: string;
+    meetingLocationType: string;
+    meetingUrl: string | null;
+    calendarName: string | null;
+  }>;
+  appointments: Array<{
+    id: number;
+    title: string;
+    contactName: string;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    assignedTo: string | null;
+    agentName: string;
+    agentAvatar: string | null;
+    startTime: string;
+    endTime: string | null;
+    status: string;
+    meetingLocationType: string;
+    meetingUrl: string | null;
+    calendarName: string | null;
   }>;
   pipelines: Array<{
     id: number;
@@ -86,6 +121,104 @@ export interface CommandCenterData {
     revenue: number;
     color: string;
   }>;
+}
+
+/**
+ * Normalizes lead source strings to prevent fragmentation from case differences,
+ * typos, plural/singular forms, or formatting variations (e.g. "WhatsApp", "Whatsapp", "whatsapp", "Whatsapp Lead", "Whatsapp Leads" -> "WhatsApp").
+ */
+export function normalizeLeadSource(rawSource: string | null | undefined): { key: string; displayName: string } {
+  if (!rawSource || !rawSource.trim()) {
+    return { key: 'direct', displayName: 'Direct' };
+  }
+
+  const cleaned = rawSource.trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  const lower = cleaned.toLowerCase();
+
+  // 1. WhatsApp variations (WhatsApp, whatsapp, Whatsapp Lead, Whatsapp Leads, agent whatsapp, whats app)
+  if (lower.includes('whatsapp') || lower.includes('whats app')) {
+    return { key: 'whatsapp', displayName: 'WhatsApp' };
+  }
+
+  // 2. Facebook Messenger variations (messanger, messenger)
+  if (lower.includes('facebook') && (lower.includes('mess') || lower.includes('msg') || lower.includes('chat'))) {
+    return { key: 'facebook_messenger', displayName: 'Facebook Messenger' };
+  }
+
+  // 3. Instagram Messenger variations
+  if ((lower.includes('instagram') || lower.startsWith('ig')) && (lower.includes('mess') || lower.includes('msg') || lower.includes('chat') || lower.includes('dm'))) {
+    return { key: 'instagram_messenger', displayName: 'Instagram Messenger' };
+  }
+
+  // 4. TikTok Messenger variations
+  if ((lower.includes('tiktok') || lower.includes('tik tok')) && (lower.includes('mess') || lower.includes('msg') || lower.includes('chat') || lower.includes('dm'))) {
+    return { key: 'tiktok_messenger', displayName: 'TikTok Messenger' };
+  }
+
+  // 5. Facebook & Facebook Ads
+  if (lower === 'facebook ads' || lower === 'fb ads' || lower === 'facebook ad' || lower === 'facebook_ads') {
+    return { key: 'facebook_ads', displayName: 'Facebook Ads' };
+  }
+  if (lower === 'facebook' || lower === 'fb') {
+    return { key: 'facebook', displayName: 'Facebook' };
+  }
+
+  // 6. TikTok & TikTok Ads
+  if (lower === 'tiktok' || lower === 'tik tok' || lower === 'tiktok ads') {
+    return { key: 'tiktok', displayName: 'TikTok' };
+  }
+
+  // 7. Instagram
+  if (lower === 'instagram' || lower === 'ig' || lower === 'instagram ads') {
+    return { key: 'instagram', displayName: 'Instagram' };
+  }
+
+  // 8. Google
+  if (lower === 'google ads' || lower === 'google ad' || lower === 'google cpc' || lower === 'google ppc') {
+    return { key: 'google_ads', displayName: 'Google Ads' };
+  }
+  if (lower === 'google' || lower === 'google search' || lower === 'google organic') {
+    return { key: 'google_search', displayName: 'Google Search' };
+  }
+
+  // 9. Manual Entry
+  if (lower === 'manual' || lower === 'manual entry' || lower === 'manual input') {
+    return { key: 'manual_entry', displayName: 'Manual Entry' };
+  }
+
+  // 10. Phonebook
+  if (lower === 'phonebook' || lower === 'phonebook import' || lower === 'phone book') {
+    return { key: 'phonebook_import', displayName: 'Phonebook Import' };
+  }
+
+  // 11. Website Form
+  if (lower.includes('website form') || lower.includes('web form') || lower.includes('webform') || lower === 'website') {
+    return { key: 'website_form', displayName: 'Website Form' };
+  }
+
+  // 12. Referral
+  if (lower.includes('referral')) {
+    return { key: 'referral', displayName: 'Client Referral' };
+  }
+
+  // 13. Direct
+  if (lower === 'direct') {
+    return { key: 'direct', displayName: 'Direct' };
+  }
+
+  // 14. Privyr / Privier
+  if (lower === 'privyr' || lower === 'privier') {
+    return { key: 'privyr', displayName: 'Privyr' };
+  }
+
+  // Generic fallback: title case every word and use lower as key
+  // This guarantees that ANY same spelling regardless of casing/spacing/hyphens gets merged!
+  const titleCased = cleaned
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+  return { key: lower, displayName: titleCased };
 }
 
 export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<CommandCenterData> {
@@ -190,7 +323,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
   }
 
   // Fetch data in parallel for maximum speed
-  const [opportunities, dbUsers, rawPipelines, pendingTasks] = await Promise.all([
+  const [opportunities, dbUsers, rawPipelines, pendingTasks, dbAppointments] = await Promise.all([
     prisma.opportunity.findMany({
       where: oppWhere,
       select: {
@@ -226,6 +359,27 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
         ...(agentId !== 'all' ? { assignedTo: agentId } : {}),
       },
       select: { id: true, dueDate: true, assignedTo: true },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        locationId,
+        ...(agentId !== 'all' ? { assignedTo: agentId } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        contactName: true,
+        contactPhone: true,
+        contactEmail: true,
+        assignedTo: true,
+        calendarName: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        meetingLocationType: true,
+        meetingUrl: true,
+      },
+      orderBy: { startTime: 'asc' },
     }),
   ]);
 
@@ -273,6 +427,42 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       agentTodayMap[u] = (agentTodayMap[u] || 0) + 1;
     }
   }
+
+  // 2b. Appointment & Booking metrics
+  const agentBookingsCountMap: Record<string, number> = {};
+  const agentBookingsTodayMap: Record<string, number> = {};
+
+  for (const appt of dbAppointments) {
+    const u = appt.assignedTo || 'unassigned';
+    agentBookingsCountMap[u] = (agentBookingsCountMap[u] || 0) + 1;
+    if (appt.startTime >= startOfDay && appt.startTime <= endOfDay) {
+      agentBookingsTodayMap[u] = (agentBookingsTodayMap[u] || 0) + 1;
+    }
+  }
+
+  // Upcoming bookings for status bar popup (next meetings from 15 min ago onwards, non-cancelled)
+  const upcomingBookings = dbAppointments
+    .filter((a) => a.startTime >= new Date(now.getTime() - 15 * 60 * 1000) && a.status !== 'cancelled')
+    .slice(0, 15)
+    .map((a) => {
+      const assignedUser = dbUsers.find((u) => u.ghlUserId === a.assignedTo);
+      return {
+        id: a.id,
+        title: a.title || 'Client Appointment',
+        contactName: a.contactName || 'Lead Appointment',
+        contactPhone: a.contactPhone,
+        contactEmail: a.contactEmail,
+        assignedTo: a.assignedTo,
+        agentName: assignedUser ? assignedUser.name : 'Unassigned',
+        agentAvatar: assignedUser ? assignedUser.avatarUrl : null,
+        startTime: a.startTime.toISOString(),
+        endTime: a.endTime ? a.endTime.toISOString() : null,
+        status: a.status,
+        meetingLocationType: a.meetingLocationType || 'zoom',
+        meetingUrl: a.meetingUrl,
+        calendarName: a.calendarName,
+      };
+    });
 
   // 3. Bottlenecks
   const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
@@ -398,6 +588,8 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       tasksOverdue: agentOverdueMap[u.ghlUserId] || 0,
       callsCount: stats.worked > 0 ? Math.round(stats.worked * 1.5) : 0,
       whatsappCount: stats.worked > 0 ? Math.round(stats.worked * 2.2) : 0,
+      bookingsCount: agentBookingsCountMap[u.ghlUserId] || 0,
+      bookingsToday: agentBookingsTodayMap[u.ghlUserId] || 0,
       isLive: true,
       stageBreakdown: agentStageBreakdownMap[u.ghlUserId] || {},
     };
@@ -435,42 +627,49 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     };
   });
 
-  // 6. Lead Source Performance
-  const sourceStats: Record<string, { leads: number; won: number; revenue: number }> = {};
+  // 6. Lead Source Performance (with smart canonical normalization and case-insensitive deduplication)
+  const sourceStats: Record<string, { displayName: string; leads: number; won: number; revenue: number }> = {};
   for (const opp of opportunities) {
-    const src = opp.source || 'Direct';
-    if (!sourceStats[src]) sourceStats[src] = { leads: 0, won: 0, revenue: 0 };
-    sourceStats[src].leads++;
+    const { key, displayName } = normalizeLeadSource(opp.source);
+    if (!sourceStats[key]) {
+      sourceStats[key] = { displayName, leads: 0, won: 0, revenue: 0 };
+    }
+    sourceStats[key].leads++;
     if (opp.status === 'won') {
-      sourceStats[src].won++;
-      sourceStats[src].revenue += opp.monetaryValue;
+      sourceStats[key].won++;
+      sourceStats[key].revenue += opp.monetaryValue;
     }
   }
 
   const sourceColors: Record<string, string> = {
     'Facebook': 'bg-blue-600',
     'Facebook Ads': 'bg-blue-600',
+    'Facebook Messenger': 'bg-blue-600',
     'Google Search': 'bg-blue-500',
+    'Google Ads': 'bg-blue-500',
+    'TikTok': 'bg-black',
+    'TikTok Messenger': 'bg-black',
     'Tiktok': 'bg-black',
+    'Instagram': 'bg-pink-600',
+    'Instagram Messenger': 'bg-pink-600',
     'WhatsApp': 'bg-emerald-500',
-    'WhatsApp Direct': 'bg-emerald-500',
-    'Whatsapp': 'bg-emerald-500',
-    'Main website Form': 'bg-indigo-500',
+    'Phonebook Import': 'bg-sky-600',
+    'Manual Entry': 'bg-blue-600',
     'Website Form': 'bg-indigo-500',
     'Client Referral': 'bg-amber-500',
     'Direct': 'bg-gray-400',
-    'privyr': 'bg-violet-500',
+    'Privyr': 'bg-violet-500',
   };
 
-  const leadSources = Object.entries(sourceStats).map(([src, stat]) => {
+  const leadSources = Object.values(sourceStats).map((stat) => {
     const rate = stat.leads > 0 ? (stat.won / stat.leads) * 100 : 0;
     return {
-      source: src,
+      source: stat.displayName,
       leads: stat.leads,
       won: stat.won,
       conversionRate: `${rate.toFixed(1)}%`,
       revenue: stat.revenue,
-      color: sourceColors[src] || 'bg-blue-500',
+      color: sourceColors[stat.displayName] || 'bg-blue-500',
     };
   });
 
@@ -482,12 +681,34 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     ghlPipelineId: p.ghlPipelineId,
   }));
 
+  // All appointments for calendar schedule view
+  const allAppointments = dbAppointments.map((a) => {
+    const assignedUser = dbUsers.find((u) => u.ghlUserId === a.assignedTo);
+    return {
+      id: a.id,
+      title: a.title || 'Client Appointment',
+      contactName: a.contactName || 'Lead Appointment',
+      contactPhone: a.contactPhone,
+      contactEmail: a.contactEmail,
+      assignedTo: a.assignedTo,
+      agentName: assignedUser ? assignedUser.name : 'Unassigned',
+      agentAvatar: assignedUser ? assignedUser.avatarUrl : null,
+      startTime: a.startTime.toISOString(),
+      endTime: a.endTime ? a.endTime.toISOString() : null,
+      status: a.status,
+      meetingLocationType: a.meetingLocationType || 'zoom',
+      meetingUrl: a.meetingUrl,
+      calendarName: a.calendarName,
+    };
+  });
+
   const result: CommandCenterData = {
     location: {
       locationId: loc.locationId,
       name: loc.name,
       currency: loc.currency,
       timezone: loc.timezone,
+      enableBookings: loc.enableBookings !== false,
       lastSyncAt: loc.lastSyncAt ? loc.lastSyncAt.toISOString() : null,
     },
     summary: {
@@ -502,6 +723,8 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     },
     bottlenecks,
     agents,
+    upcomingBookings,
+    appointments: allAppointments,
     pipelines,
     pipelineStages,
     leadSources,

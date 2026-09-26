@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCommandCenterKpis } from '@/lib/kpi/engine';
+import { autoSyncIfStale } from '@/lib/ghl/sync-manager';
 import prisma from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,9 @@ export async function GET(req: Request) {
       }
       locationId = firstLoc.locationId;
     }
+
+    // Automatically trigger non-blocking server-side background sync if data is stale (>60s)
+    autoSyncIfStale(locationId, 60000);
 
     const dateRange = searchParams.get('dateRange') || 'this_month';
     const startDate = searchParams.get('startDate') || undefined;

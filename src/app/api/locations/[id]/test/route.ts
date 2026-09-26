@@ -36,6 +36,38 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const client = new GhlClient({ locationId, privateKey });
     const result = await client.testConnection();
 
+    if (result.success && result.agents) {
+      // Check if location or agents exist in DB to preserve saved isActive states
+      const dbUsers = await prisma.user.findMany({
+        where: { locationId },
+        select: { ghlUserId: true, isActive: true },
+      });
+      const dbMap = new Map(dbUsers.map((u) => [u.ghlUserId, u.isActive]));
+      result.agents = result.agents.map((a: any) => ({
+        ...a,
+        isActive: dbMap.has(a.ghlUserId) ? (dbMap.get(a.ghlUserId) as boolean) : true,
+      }));
+    }
+
+    if (result.success && Array.isArray(result.calendars)) {
+      const loc = await prisma.ghlLocation.findUnique({
+        where: { locationId },
+        select: { selectedCalendarIds: true },
+      });
+      let selectedIds: string[] = [];
+      if (loc?.selectedCalendarIds) {
+        try {
+          selectedIds = JSON.parse(loc.selectedCalendarIds);
+        } catch {
+          selectedIds = loc.selectedCalendarIds.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      result.calendars = result.calendars.map((c: any) => ({
+        ...c,
+        isSelected: selectedIds.length === 0 || selectedIds.includes(c.id),
+      }));
+    }
+
     return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

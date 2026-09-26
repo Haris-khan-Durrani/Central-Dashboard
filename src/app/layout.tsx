@@ -1,4 +1,4 @@
-ximport type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
 import { LocationProvider } from '@/context/LocationContext';
 

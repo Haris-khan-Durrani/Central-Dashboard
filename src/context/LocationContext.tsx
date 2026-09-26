@@ -10,6 +10,7 @@ export interface LocationItem {
   currency: string;
   timezone: string;
   isActive: boolean;
+  enableBookings?: boolean;
   lastSyncAt: string | null;
   syncStatus: string;
   syncErrorMessage: string | null;

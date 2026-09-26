@@ -15,6 +15,13 @@ import {
   ShieldCheck,
   Edit2,
   Trash2,
+  Users,
+  Calendar,
+  Search,
+  Eye,
+  EyeOff,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { useLocationContext, LocationItem } from '@/context/LocationContext';
 
@@ -22,6 +29,23 @@ interface SubAccountSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onToast: (msg: string) => void;
+}
+
+export interface DiscoveredAgent {
+  ghlUserId: string;
+  name: string;
+  email: string | null;
+  role: string;
+  avatarUrl: string | null;
+  isActive: boolean;
+}
+
+export interface DiscoveredCalendar {
+  id: string;
+  name: string;
+  calendarType?: string;
+  description?: string;
+  isSelected: boolean;
 }
 
 export default function SubAccountSettingsModal({
@@ -46,8 +70,18 @@ export default function SubAccountSettingsModal({
     privateKey: '',
     currency: 'AED',
     timezone: 'Asia/Dubai',
+    enableBookings: true,
     enableCallStats: false,
   });
+
+  const [discoveredAgents, setDiscoveredAgents] = useState<DiscoveredAgent[]>([]);
+  const [agentSearch, setAgentSearch] = useState('');
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+
+  const [discoveredCalendars, setDiscoveredCalendars] = useState<DiscoveredCalendar[]>([]);
+  const [trackAllCalendars, setTrackAllCalendars] = useState(true);
+  const [calendarSearch, setCalendarSearch] = useState('');
+  const [isLoadingCalendars, setIsLoadingCalendars] = useState(false);
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -67,13 +101,19 @@ export default function SubAccountSettingsModal({
       privateKey: '',
       currency: 'AED',
       timezone: 'Asia/Dubai',
+      enableBookings: true,
       enableCallStats: false,
     });
+    setDiscoveredAgents([]);
+    setAgentSearch('');
+    setDiscoveredCalendars([]);
+    setTrackAllCalendars(true);
+    setCalendarSearch('');
     setTestResult(null);
     setIsFormOpen(true);
   };
 
-  const handleOpenEdit = (loc: LocationItem) => {
+  const handleOpenEdit = async (loc: LocationItem) => {
     setIsEditing(true);
     setEditingLocId(loc.locationId);
     setFormData({
@@ -82,17 +122,97 @@ export default function SubAccountSettingsModal({
       privateKey: '', // Leave blank unless updating
       currency: loc.currency,
       timezone: loc.timezone,
+      enableBookings: loc.enableBookings !== false,
       enableCallStats: false,
     });
+    setDiscoveredAgents([]);
+    setAgentSearch('');
+    setDiscoveredCalendars([]);
+    setTrackAllCalendars(true);
+    setCalendarSearch('');
     setTestResult(null);
     setIsFormOpen(true);
+
+    // Fetch existing agents from DB for this location
+    setIsLoadingAgents(true);
+    try {
+      const res = await fetch(`/api/locations/${loc.locationId}/agents`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.agents)) {
+        setDiscoveredAgents(
+          data.agents.map((a: any) => ({
+            ghlUserId: a.ghlUserId,
+            name: a.name,
+            email: a.email,
+            role: a.role,
+            avatarUrl: a.avatarUrl,
+            isActive: a.isActive !== false,
+          }))
+        );
+      }
+    } catch (e) {
+      console.error('Error fetching agents for location:', e);
+    } finally {
+      setIsLoadingAgents(false);
+    }
+
+    // Fetch existing calendars from DB / GHL for this location
+    setIsLoadingCalendars(true);
+    try {
+      const res = await fetch(`/api/locations/${loc.locationId}/calendars`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.calendars)) {
+        setDiscoveredCalendars(
+          data.calendars.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            calendarType: c.calendarType,
+            description: c.description,
+            isSelected: c.isSelected !== false,
+          }))
+        );
+        setTrackAllCalendars(
+          data.selectedAll !== false &&
+            (!data.selectedCalendarIds || data.selectedCalendarIds.length === 0)
+        );
+      }
+    } catch (e) {
+      console.error('Error fetching calendars for location:', e);
+    } finally {
+      setIsLoadingCalendars(false);
+    }
   };
 
   const handleCancelForm = () => {
     setIsFormOpen(false);
     setIsEditing(false);
     setEditingLocId(null);
+    setDiscoveredAgents([]);
+    setAgentSearch('');
+    setDiscoveredCalendars([]);
+    setTrackAllCalendars(true);
+    setCalendarSearch('');
     setTestResult(null);
+  };
+
+  const handleToggleAgent = (ghlUserId: string) => {
+    setDiscoveredAgents((prev) =>
+      prev.map((a) => (a.ghlUserId === ghlUserId ? { ...a, isActive: !a.isActive } : a))
+    );
+  };
+
+  const handleSelectAllAgents = (select: boolean) => {
+    setDiscoveredAgents((prev) => prev.map((a) => ({ ...a, isActive: select })));
+  };
+
+  const handleToggleCalendar = (id: string) => {
+    setDiscoveredCalendars((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, isSelected: !c.isSelected } : c))
+    );
+  };
+
+  const handleSelectAllCalendars = (select: boolean) => {
+    setDiscoveredCalendars((prev) => prev.map((c) => ({ ...c, isSelected: select })));
   };
 
   const handleTestConnection = async () => {
@@ -119,6 +239,38 @@ export default function SubAccountSettingsModal({
         success: data.success,
         message: data.message || (data.success ? 'Connected successfully!' : data.error || 'Connection failed'),
       });
+
+      if (data.success && Array.isArray(data.agents)) {
+        // Merge with existing discoveredAgents to keep any active toggles
+        setDiscoveredAgents((prev) => {
+          const prevMap = new Map(prev.map((a) => [a.ghlUserId, a.isActive]));
+          return data.agents.map((a: any) => ({
+            ghlUserId: a.ghlUserId,
+            name: a.name,
+            email: a.email,
+            role: a.role,
+            avatarUrl: a.avatarUrl,
+            isActive: prevMap.has(a.ghlUserId)
+              ? (prevMap.get(a.ghlUserId) as boolean)
+              : a.isActive !== false,
+          }));
+        });
+      }
+
+      if (data.success && Array.isArray(data.calendars)) {
+        setDiscoveredCalendars((prev) => {
+          const prevMap = new Map(prev.map((c) => [c.id, c.isSelected]));
+          return data.calendars.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            calendarType: c.calendarType,
+            description: c.description,
+            isSelected: prevMap.has(c.id)
+              ? (prevMap.get(c.id) as boolean)
+              : c.isSelected !== false,
+          }));
+        });
+      }
     } catch (err: any) {
       setTestResult({
         success: false,
@@ -133,6 +285,10 @@ export default function SubAccountSettingsModal({
     e.preventDefault();
     setIsSaving(true);
     try {
+      const selectedCalendarIds = trackAllCalendars
+        ? null
+        : discoveredCalendars.filter((c) => c.isSelected).map((c) => c.id);
+
       if (isEditing && editingLocId) {
         // PUT update
         const res = await fetch(`/api/locations/${editingLocId}`, {
@@ -142,7 +298,10 @@ export default function SubAccountSettingsModal({
             name: formData.name,
             currency: formData.currency,
             timezone: formData.timezone,
+            enableBookings: formData.enableBookings,
+            selectedCalendarIds,
             privateKey: formData.privateKey || undefined,
+            agents: discoveredAgents,
           }),
         });
         const data = await res.json();
@@ -164,7 +323,11 @@ export default function SubAccountSettingsModal({
         const res = await fetch('/api/locations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            selectedCalendarIds,
+            agents: discoveredAgents,
+          }),
         });
         const data = await res.json();
         if (data.success) {
@@ -517,6 +680,191 @@ export default function SubAccountSettingsModal({
                   </label>
                 </div>
 
+                {/* Bookings & Calendar Tracking Toggle */}
+                <div className="p-3 bg-white rounded-xl border border-gray-200">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.enableBookings}
+                      onChange={(e) =>
+                        setFormData({ ...formData, enableBookings: e.target.checked })
+                      }
+                      className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-gray-800 text-xs flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Enable Bookings & Calendar Tracking</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 leading-tight mt-0.5">
+                        Syncs calendar appointments and shows booking metrics on agent cards and in the upcoming bookings popup on the status bar.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Calendar Configuration Panel */}
+                {formData.enableBookings && (
+                  <div className="bg-white rounded-2xl p-4 border border-blue-200 shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+                      <div>
+                        <div className="font-bold text-gray-900 text-xs flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span>Calendar Selection</span>
+                          {!trackAllCalendars && discoveredCalendars.length > 0 && (
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold rounded-full border border-blue-100">
+                              {discoveredCalendars.filter((c) => c.isSelected).length} of {discoveredCalendars.length} selected
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Configure which calendars are monitored for bookings & appointments.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setTrackAllCalendars(true)}
+                          className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all ${
+                            trackAllCalendars
+                              ? 'bg-white text-blue-600 shadow-sm font-bold'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          All Calendars
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTrackAllCalendars(false)}
+                          className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all ${
+                            !trackAllCalendars
+                              ? 'bg-white text-blue-600 shadow-sm font-bold'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          Specific Calendars
+                        </button>
+                      </div>
+                    </div>
+
+                    {trackAllCalendars ? (
+                      <div className="py-2.5 px-3 bg-blue-50/50 rounded-xl border border-blue-100/60 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                          <span className="text-xs text-blue-800 font-medium">
+                            Tracking all active & future calendars in this sub-account ({discoveredCalendars.length} discovered).
+                          </span>
+                        </div>
+                        {discoveredCalendars.length === 0 && (
+                          <button
+                            type="button"
+                            onClick={handleTestConnection}
+                            disabled={isTesting}
+                            className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline"
+                          >
+                            Discover Calendars
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-gray-500 font-medium">
+                            Check the specific calendars to display on this dashboard:
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllCalendars(true)}
+                              className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllCalendars(false)}
+                              className="px-2 py-0.5 text-[10px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md"
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        </div>
+
+                        {discoveredCalendars.length > 4 && (
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                            <input
+                              type="text"
+                              placeholder="Search calendars by name..."
+                              value={calendarSearch}
+                              onChange={(e) => setCalendarSearch(e.target.value)}
+                              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
+                            />
+                          </div>
+                        )}
+
+                        {isLoadingCalendars ? (
+                          <div className="py-6 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                            <span>Loading calendars...</span>
+                          </div>
+                        ) : discoveredCalendars.length === 0 ? (
+                          <div className="py-4 text-center text-xs text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                            <p>No calendars loaded yet.</p>
+                            <button
+                              type="button"
+                              onClick={handleTestConnection}
+                              disabled={isTesting}
+                              className="mt-1.5 px-3 py-1 bg-white hover:bg-gray-100 text-blue-600 text-xs font-bold rounded-lg border border-gray-200 shadow-sm"
+                            >
+                              Test Connection to Load Calendars
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-50">
+                            {discoveredCalendars
+                              .filter((c) => !calendarSearch || c.name.toLowerCase().includes(calendarSearch.toLowerCase()))
+                              .map((cal) => (
+                                <div
+                                  key={cal.id}
+                                  onClick={() => handleToggleCalendar(cal.id)}
+                                  className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all border ${
+                                    cal.isSelected
+                                      ? 'bg-blue-50/40 border-blue-200/60 hover:bg-blue-50/70'
+                                      : 'bg-gray-50/60 border-transparent hover:bg-gray-100/70 opacity-60'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={cal.isSelected}
+                                      onChange={() => {}} // handled by click
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 pointer-events-none"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-bold text-gray-900 truncate">
+                                        {cal.name}
+                                      </div>
+                                      {cal.description && (
+                                        <div className="text-[10px] text-gray-500 truncate">
+                                          {cal.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded-md shrink-0 uppercase tracking-wider">
+                                    {cal.calendarType || 'Standard'}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Connection Test Result */}
                 {testResult && (
                   <div
@@ -532,6 +880,132 @@ export default function SubAccountSettingsModal({
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                     )}
                     <span>{testResult.message}</span>
+                  </div>
+                )}
+
+                {/* Agent Visibility Selection Panel */}
+                {(discoveredAgents.length > 0 || isLoadingAgents) && (
+                  <div className="bg-white rounded-2xl p-4 border border-blue-200 shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+                      <div>
+                        <div className="font-bold text-gray-900 text-xs flex items-center gap-2">
+                          <Users className="w-4 h-4 text-blue-600" />
+                          <span>Sales Agent Visibility</span>
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold rounded-full border border-blue-100">
+                            {discoveredAgents.filter((a) => a.isActive).length} of {discoveredAgents.length} visible
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Select the agents you want to show on the Central Dashboard. Unchecked agents will be hidden.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllAgents(true)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          <span>Select All</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllAgents(false)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          <UserX className="w-3 h-3" />
+                          <span>Deselect All</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Search filter for agents */}
+                    {discoveredAgents.length > 4 && (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="Filter agents by name or email..."
+                          value={agentSearch}
+                          onChange={(e) => setAgentSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {isLoadingAgents ? (
+                      <div className="py-6 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                        <span>Loading team members...</span>
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-50">
+                        {discoveredAgents
+                          .filter(
+                            (a) =>
+                              !agentSearch ||
+                              a.name.toLowerCase().includes(agentSearch.toLowerCase()) ||
+                              (a.email && a.email.toLowerCase().includes(agentSearch.toLowerCase()))
+                          )
+                          .map((agent) => (
+                            <div
+                              key={agent.ghlUserId}
+                              onClick={() => handleToggleAgent(agent.ghlUserId)}
+                              className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all border ${
+                                agent.isActive
+                                  ? 'bg-blue-50/40 border-blue-200/60 hover:bg-blue-50/70'
+                                  : 'bg-gray-50/60 border-transparent hover:bg-gray-100/70 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={agent.isActive}
+                                  onChange={() => {}} // handled by row click
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 pointer-events-none"
+                                />
+                                <img
+                                  src={agent.avatarUrl || `https://placehold.co/80x80/e2e8f0/1e293b?text=${agent.name.slice(0, 2)}`}
+                                  alt={agent.name}
+                                  className="w-7 h-7 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = `https://placehold.co/80x80/e2e8f0/1e293b?text=${agent.name.slice(0, 2)}`;
+                                  }}
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-gray-900 truncate">
+                                    {agent.name}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 truncate">
+                                    {agent.role || 'Sales Consultant'} {agent.email ? `• ${agent.email}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <span
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 flex items-center gap-1 ${
+                                  agent.isActive
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-gray-200 text-gray-600'
+                                }`}
+                              >
+                                {agent.isActive ? (
+                                  <>
+                                    <Eye className="w-3 h-3 text-emerald-600" />
+                                    <span>Visible</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3 text-gray-400" />
+                                    <span>Hidden</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

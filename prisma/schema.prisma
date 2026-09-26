@@ -19,6 +19,8 @@ model GhlLocation {
   lastSyncAt           DateTime?     @map("last_sync_at")
   syncStatus           String        @default("idle") @map("sync_status") @db.VarChar(30)
   syncErrorMessage     String?       @map("sync_error_message") @db.Text
+  enableBookings       Boolean       @default(true) @map("enable_bookings")
+  selectedCalendarIds  String?       @map("selected_calendar_ids") @db.Text
   createdAt            DateTime      @default(now()) @map("created_at")
   updatedAt            DateTime      @updatedAt @map("updated_at")
 
@@ -28,6 +30,7 @@ model GhlLocation {
   contacts             Contact[]
   opportunities        Opportunity[]
   tasks                Task[]
+  appointments         Appointment[]
   kpiTargets           KpiTarget[]
   stageHistories       OpportunityStageHistory[]
   touchHistories       LeadTouchHistory[]
@@ -107,6 +110,7 @@ model Contact {
   location       GhlLocation   @relation(fields: [locationId], references: [locationId], onDelete: Cascade)
   opportunities  Opportunity[]
   tasks          Task[]
+  appointments   Appointment[]
   touchHistories LeadTouchHistory[]
 
   @@unique([locationId, ghlContactId])
@@ -245,3 +249,35 @@ model DashboardShare {
   @@index([locationId])
   @@map("dashboard_shares")
 }
+
+model Appointment {
+  id                   Int          @id @default(autoincrement())
+  locationId           String       @map("location_id") @db.VarChar(100)
+  ghlAppointmentId     String       @map("ghl_appointment_id") @db.VarChar(100)
+  title                String?      @db.VarChar(255)
+  contactId            Int?         @map("contact_id")
+  contactName          String?      @map("contact_name") @db.VarChar(255)
+  contactPhone         String?      @map("contact_phone") @db.VarChar(100)
+  contactEmail         String?      @map("contact_email") @db.VarChar(255)
+  assignedTo           String?      @map("assigned_to") @db.VarChar(100)
+  calendarId           String?      @map("calendar_id") @db.VarChar(100)
+  calendarName         String?      @map("calendar_name") @db.VarChar(255)
+  startTime            DateTime     @map("start_time")
+  endTime              DateTime?    @map("end_time")
+  status               String       @default("confirmed") @db.VarChar(50) // confirmed, cancelled, showed, noshow, invalid
+  meetingLocationType  String?      @default("zoom") @map("meeting_location_type") @db.VarChar(100) // zoom, google_meet, phone, in_person, etc.
+  meetingUrl           String?      @map("meeting_url") @db.Text
+  notes                String?      @db.Text
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  location             GhlLocation  @relation(fields: [locationId], references: [locationId], onDelete: Cascade)
+  contact              Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([locationId, ghlAppointmentId])
+  @@index([locationId, startTime])
+  @@index([locationId, assignedTo, startTime])
+  @@index([locationId, status])
+  @@map("appointments")
+}
+

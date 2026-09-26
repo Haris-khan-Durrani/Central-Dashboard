@@ -7,7 +7,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   try {
     const { id: locationId } = params;
     const body = await req.json();
-    const { name, currency, timezone, privateKey } = body;
+    const { name, currency, timezone, privateKey, enableBookings, selectedCalendarIds, agents } = body;
 
     const existing = await prisma.ghlLocation.findUnique({
       where: { locationId },
@@ -21,6 +21,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (name) updateData.name = name.trim();
     if (currency) updateData.currency = currency.trim().toUpperCase();
     if (timezone) updateData.timezone = timezone.trim();
+    if (enableBookings !== undefined) updateData.enableBookings = Boolean(enableBookings);
+    if (selectedCalendarIds !== undefined) {
+      updateData.selectedCalendarIds =
+        Array.isArray(selectedCalendarIds) && selectedCalendarIds.length > 0
+          ? JSON.stringify(selectedCalendarIds)
+          : typeof selectedCalendarIds === 'string' && selectedCalendarIds.trim()
+          ? selectedCalendarIds
+          : null;
+    }
 
     if (privateKey && privateKey.trim()) {
       updateData.encryptedPrivateKey = encryptString(privateKey.trim());
@@ -38,10 +47,38 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         currency: true,
         timezone: true,
         isActive: true,
+        enableBookings: true,
         lastSyncAt: true,
         syncStatus: true,
       },
     });
+
+    // Update agents visibility if provided
+    if (Array.isArray(agents) && agents.length > 0) {
+      for (const a of agents) {
+        if (!a.ghlUserId) continue;
+        await prisma.user.upsert({
+          where: {
+            locationId_ghlUserId: {
+              locationId,
+              ghlUserId: a.ghlUserId,
+            },
+          },
+          update: {
+            isActive: a.isActive !== false,
+          },
+          create: {
+            locationId,
+            ghlUserId: a.ghlUserId,
+            name: a.name || 'User',
+            email: a.email || null,
+            role: a.role || 'Sales Consultant',
+            avatarUrl: a.avatarUrl || null,
+            isActive: a.isActive !== false,
+          },
+        });
+      }
+    }
 
     fastCache.invalidateLocation(locationId);
 

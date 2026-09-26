@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Users,
   Settings,
+  Calendar,
 } from 'lucide-react';
 import { useLocationContext } from '@/context/LocationContext';
 
@@ -16,12 +17,14 @@ interface SidebarProps {
   activeSection?: string;
   onNavigate?: (section: string) => void;
   onOpenTasks?: () => void;
+  onOpenCalendar?: () => void;
 }
 
 export default function Sidebar({
   activeSection = 'dashboard',
   onNavigate,
   onOpenTasks,
+  onOpenCalendar,
 }: SidebarProps) {
   const { setIsSettingsModalOpen } = useLocationContext();
 
@@ -29,6 +32,12 @@ export default function Sidebar({
     if (section === 'tasks') {
       if (onOpenTasks) {
         onOpenTasks();
+        return;
+      }
+    }
+    if (section === 'calendar') {
+      if (onOpenCalendar) {
+        onOpenCalendar();
         return;
       }
     }
@@ -111,6 +120,17 @@ export default function Sidebar({
           title="Sales Team & Agent Performance"
         >
           <Users className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => handleNav('calendar')}
+          className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+            activeSection === 'calendar'
+              ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-500/10'
+              : 'text-gray-400 hover:bg-gray-50 hover:text-indigo-600'
+          }`}
+          title="Appointment Calendar & Schedule"
+        >
+          <Calendar className="w-5 h-5" />
         </button>
       </nav>
 

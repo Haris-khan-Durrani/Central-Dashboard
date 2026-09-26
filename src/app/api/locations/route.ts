@@ -15,6 +15,7 @@ export async function GET() {
         currency: true,
         timezone: true,
         isActive: true,
+        enableBookings: true,
         lastSyncAt: true,
         syncStatus: true,
         syncErrorMessage: true,
@@ -30,7 +31,16 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { locationId, name, privateKey, currency = 'AED', timezone = 'Asia/Dubai' } = body;
+    const {
+      locationId,
+      name,
+      privateKey,
+      currency = 'AED',
+      timezone = 'Asia/Dubai',
+      enableBookings = true,
+      selectedCalendarIds = null,
+      agents = [],
+    } = body;
 
     if (!locationId || !name || !privateKey) {
       return NextResponse.json(
@@ -43,6 +53,13 @@ export async function POST(req: Request) {
     const encryptedPrivateKey = encryptString(privateKey);
     const keyHint = getMaskedKeyHint(privateKey);
 
+    const serializedCalendarIds =
+      Array.isArray(selectedCalendarIds) && selectedCalendarIds.length > 0
+        ? JSON.stringify(selectedCalendarIds)
+        : typeof selectedCalendarIds === 'string' && selectedCalendarIds.trim()
+        ? selectedCalendarIds
+        : null;
+
     const location = await prisma.ghlLocation.upsert({
       where: { locationId: locationId.trim() },
       update: {
@@ -51,6 +68,8 @@ export async function POST(req: Request) {
         keyHint,
         currency: currency.trim() || 'AED',
         timezone: timezone.trim() || 'Asia/Dubai',
+        enableBookings: Boolean(enableBookings),
+        selectedCalendarIds: serializedCalendarIds,
         isActive: true,
       },
       create: {
@@ -60,9 +79,42 @@ export async function POST(req: Request) {
         keyHint,
         currency: currency.trim() || 'AED',
         timezone: timezone.trim() || 'Asia/Dubai',
+        enableBookings: Boolean(enableBookings),
+        selectedCalendarIds: serializedCalendarIds,
         isActive: true,
       },
     });
+
+    // Save initial agents visibility if provided
+    if (Array.isArray(agents) && agents.length > 0) {
+      for (const a of agents) {
+        if (!a.ghlUserId) continue;
+        await prisma.user.upsert({
+          where: {
+            locationId_ghlUserId: {
+              locationId: location.locationId,
+              ghlUserId: a.ghlUserId,
+            },
+          },
+          update: {
+            name: a.name || 'User',
+            email: a.email || null,
+            role: a.role || 'Sales Consultant',
+            avatarUrl: a.avatarUrl || null,
+            isActive: a.isActive !== false,
+          },
+          create: {
+            locationId: location.locationId,
+            ghlUserId: a.ghlUserId,
+            name: a.name || 'User',
+            email: a.email || null,
+            role: a.role || 'Sales Consultant',
+            avatarUrl: a.avatarUrl || null,
+            isActive: a.isActive !== false,
+          },
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

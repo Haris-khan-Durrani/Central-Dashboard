@@ -12,6 +12,7 @@ import Agent360Modal from '@/components/modals/Agent360Modal';
 import BottlenecksModal from '@/components/modals/BottlenecksModal';
 import SubAccountSettingsModal from '@/components/modals/SubAccountSettingsModal';
 import ShareModal from '@/components/modals/ShareModal';
+import CalendarViewModal from '@/components/modals/CalendarViewModal';
 import { useLocationContext } from '@/context/LocationContext';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null);
   const [isBottlenecksModalOpen, setIsBottlenecksModalOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState<boolean>(false);
 
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -288,6 +290,7 @@ export default function DashboardPage() {
           }
         }}
         onOpenTasks={() => setIsBottlenecksModalOpen(true)}
+        onOpenCalendar={() => setIsCalendarModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -313,6 +316,7 @@ export default function DashboardPage() {
           }
           onRefresh={handleLiveGhlSync}
           onOpenShare={() => setIsShareModalOpen(true)}
+          onOpenCalendar={() => setIsCalendarModalOpen(true)}
           isRefreshing={isRefreshing}
           lastSyncTime={lastSyncTime}
           lastSyncTimestamp={lastSyncTimestamp}
@@ -323,6 +327,8 @@ export default function DashboardPage() {
           autoSyncGhl={autoSyncGhl}
           setAutoSyncGhl={setAutoSyncGhl}
           isBackgroundSyncing={isBackgroundSyncing}
+          upcomingBookings={kpiData?.upcomingBookings || []}
+          enableBookings={kpiData?.location?.enableBookings !== false}
         />
 
         {/* Top loading line indicator when fetching in background */}
@@ -357,6 +363,7 @@ export default function DashboardPage() {
                   agents={kpiData.agents || []}
                   currency={currency}
                   showCallStats={false}
+                  showBookings={kpiData?.location?.enableBookings !== false}
                   onViewAgentReport={(agent) => setSelectedAgent(agent)}
                 />
               </div>
@@ -424,6 +431,17 @@ export default function DashboardPage() {
         pipelineId={pipelineId}
         onClose={() => setIsShareModalOpen(false)}
         onToast={(msg, type) => showToast(msg, type || 'success')}
+      />
+
+      {/* Interactive Calendar Schedule Modal */}
+      <CalendarViewModal
+        isOpen={isCalendarModalOpen}
+        onClose={() => setIsCalendarModalOpen(false)}
+        appointments={kpiData?.appointments || kpiData?.upcomingBookings || []}
+        agents={kpiData?.agents || []}
+        locationName={kpiData?.location?.name || activeLocationId || 'Sub-Account'}
+        onRefresh={handleLiveGhlSync}
+        isRefreshing={isRefreshing}
       />
 
       {/* Floating Toast Notification */}
