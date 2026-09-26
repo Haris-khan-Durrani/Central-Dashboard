@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import TopMetricCards from '@/components/dashboard/TopMetricCards';
-import BottlenecksBanner from '@/components/dashboard/BottlenecksBanner';
 import AgentCardsGrid, { AgentData } from '@/components/dashboard/AgentCardsGrid';
 import PipelineVelocityFunnel from '@/components/dashboard/PipelineVelocityFunnel';
 import LeadSourceMatrix from '@/components/dashboard/LeadSourceMatrix';
@@ -38,7 +37,6 @@ export default function DashboardPage() {
 
   // Modals state
   const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null);
-  const [isBottlenecksModalOpen, setIsBottlenecksModalOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState<boolean>(false);
 
@@ -290,7 +288,6 @@ export default function DashboardPage() {
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }
         }}
-        onOpenTasks={() => setIsBottlenecksModalOpen(true)}
         onOpenCalendar={() => setIsCalendarModalOpen(true)}
       />
 
@@ -348,15 +345,6 @@ export default function DashboardPage() {
                 <TopMetricCards summary={kpiData.summary} currency={currency} />
               </div>
 
-              {/* 2. Bottlenecks & Attention Banner */}
-              <div id="tasks-section">
-                <BottlenecksBanner
-                  uncontactedCount={kpiData.bottlenecks.uncontactedCount}
-                  stuckCount={kpiData.bottlenecks.stuckInContactedCount}
-                  agentsOverdueCount={kpiData.bottlenecks.agentsWithOverdueCount}
-                  onOpenModal={() => setIsBottlenecksModalOpen(true)}
-                />
-              </div>
 
               {/* 3. Upcoming Client Meetings & Agent Availability Hub */}
               {kpiData?.location?.enableBookings !== false && (
@@ -422,11 +410,6 @@ export default function DashboardPage() {
         onToast={(msg) => showToast(msg, 'info')}
       />
 
-      <BottlenecksModal
-        isOpen={isBottlenecksModalOpen}
-        onClose={() => setIsBottlenecksModalOpen(false)}
-        onAction={(type, msg) => showToast(msg, 'success')}
-      />
 
       <SubAccountSettingsModal
         isOpen={isSettingsModalOpen}
