@@ -129,7 +129,16 @@ export class GhlClient {
   async getCalendars(): Promise<any[]> {
     try {
       const res = await this.request<any>(`/calendars/?locationId=${this.locationId}`);
-      return res.calendars || [];
+      const list = res.calendars || res.services || [];
+      if (Array.isArray(list) && list.length > 0) return list;
+
+      // Fallback: try /calendars/services
+      try {
+        const servRes = await this.request<any>(`/calendars/services?locationId=${this.locationId}`);
+        return servRes.services || servRes.calendars || [];
+      } catch {
+        return [];
+      }
     } catch (err: any) {
       if (err?.message?.includes('scope') || err?.message?.includes('401')) {
         console.info(`[GHL Info] Calendars scope not granted for location ${this.locationId} - calendar sync skipped.`);
@@ -158,71 +167,100 @@ export class GhlClient {
 
   /**
    * Fetch calendar events / appointments for this location
-   * GHL API v2 requires either calendarId, userId, or groupId
+   * GHL API v2 requires integer millisecond timestamps and calendarId/userId
    */
   async getCalendarEvents(
-    startTime?: string,
-    endTime?: string,
+    startTime?: string | number,
+    endTime?: string | number,
     calendarIds?: string[],
     userIds?: string[]
   ): Promise<any[]> {
     try {
-      const now = new Date();
-      // default: past 30 days to upcoming 60 days
-      const start = startTime || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const end = endTime || new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+      const nowMs = Date.now();
+      // GHL expects numeric timestamps in milliseconds
+      const startMs = startTime
+        ? (!isNaN(Number(startTime)) ? Number(startTime) : new Date(startTime).getTime())
+        : nowMs - 90 * 24 * 60 * 60 * 1000; // Past 90 days
 
-      // Determine calendar IDs to query
-      let targetCalIds = Array.isArray(calendarIds) && calendarIds.length > 0 ? calendarIds : [];
-      if (targetCalIds.length === 0) {
-        const cals = await this.getCalendars();
-        targetCalIds = cals.map((c: any) => String(c.id || c._id || '')).filter(Boolean);
-      }
+      const endMs = endTime
+        ? (!isNaN(Number(endTime)) ? Number(endTime) : new Date(endTime).getTime())
+        : nowMs + 180 * 24 * 60 * 60 * 1000; // Next 180 days
 
       const allEvents: any[] = [];
       const seenIds = new Set<string>();
 
+      // 1. Discover all calendars
+      let targetCalIds = Array.isArray(calendarIds) && calendarIds.length > 0 ? calendarIds : [];
+      let discoveredCalendars: any[] = [];
+      try {
+        discoveredCalendars = await this.getCalendars();
+        if (targetCalIds.length === 0) {
+          targetCalIds = discoveredCalendars.map((c: any) => String(c.id || c._id || '')).filter(Boolean);
+        }
+      } catch (calListErr) {
+        // continue
+      }
+
+      const calNameMap = new Map<string, string>();
+      for (const c of discoveredCalendars) {
+        if (c.id) calNameMap.set(String(c.id), c.name || 'Calendar');
+      }
+
+      // Query by each calendarId
       if (targetCalIds.length > 0) {
         for (const calId of targetCalIds) {
           try {
             const res = await this.request<any>(
-              `/calendars/events?locationId=${this.locationId}&calendarId=${calId}&startTime=${start}&endTime=${end}`
+              `/calendars/events?locationId=${this.locationId}&calendarId=${calId}&startTime=${startMs}&endTime=${endMs}`
             );
             const list = res.events || res.appointments || [];
             for (const item of list) {
               const id = String(item.id || item._id || item.appointmentId || '');
               if (id && !seenIds.has(id)) {
                 seenIds.add(id);
-                allEvents.push({ ...item, calendarId: item.calendarId || calId });
+                allEvents.push({
+                  ...item,
+                  calendarId: item.calendarId || calId,
+                  calendarName: item.calendarName || calNameMap.get(calId) || null,
+                });
               }
             }
           } catch (calErr: any) {
-            // continue silently
+            // continue
           }
         }
-      } else {
-        // Fallback: Query by user IDs if no calendar IDs are found
-        let targetUserIds = Array.isArray(userIds) && userIds.length > 0 ? userIds : [];
-        if (targetUserIds.length === 0) {
+      }
+
+      // 2. Also query by each userId to capture direct rep-assigned bookings
+      let targetUserIds = Array.isArray(userIds) && userIds.length > 0 ? userIds : [];
+      if (targetUserIds.length === 0) {
+        try {
           const users = await this.getUsers();
           targetUserIds = users.map((u: any) => String(u.id || u._id || u.userId || '')).filter(Boolean);
+        } catch {
+          // continue
         }
+      }
 
-        for (const uId of targetUserIds.slice(0, 15)) {
+      if (targetUserIds.length > 0) {
+        for (const uId of targetUserIds.slice(0, 20)) {
           try {
             const res = await this.request<any>(
-              `/calendars/events?locationId=${this.locationId}&userId=${uId}&startTime=${start}&endTime=${end}`
+              `/calendars/events?locationId=${this.locationId}&userId=${uId}&startTime=${startMs}&endTime=${endMs}`
             );
             const list = res.events || res.appointments || [];
             for (const item of list) {
               const id = String(item.id || item._id || item.appointmentId || '');
               if (id && !seenIds.has(id)) {
                 seenIds.add(id);
-                allEvents.push(item);
+                allEvents.push({
+                  ...item,
+                  assignedUserId: item.assignedUserId || item.userId || uId,
+                });
               }
             }
           } catch (uErr: any) {
-            // continue silently
+            // continue
           }
         }
       }
