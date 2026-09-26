@@ -432,9 +432,17 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
         isOpen={isCalendarModalOpen}
         onClose={() => setIsCalendarModalOpen(false)}
         appointments={appointments.length > 0 ? appointments : upcomingBookings}
-        agents={agents?.map((a: any) => ({ id: a.id || a.ghlUserId, name: a.name })) || []}
-        currency={currency}
+        agents={
+          agents?.map((a: any) => ({
+            id: a.id || a.ghlUserId,
+            ghlUserId: a.ghlUserId || a.id,
+            name: a.name,
+            avatarUrl: a.avatarUrl || null,
+          })) || []
+        }
+        locationName={location?.name || shareTitle || 'Sales Command Center'}
         onRefresh={() => load(false)}
+        isRefreshing={isRefreshing}
       />
 
       <BottlenecksModal
