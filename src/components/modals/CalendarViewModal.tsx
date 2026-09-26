@@ -20,6 +20,8 @@ import {
   List,
   Sparkles,
   RefreshCw,
+  Columns3,
+  Sun,
 } from 'lucide-react';
 import { parseMeetingDetails } from '@/lib/meetingHelper';
 
@@ -39,6 +41,8 @@ export interface CalendarAppointment {
   meetingLocationType: string;
   meetingUrl: string | null;
   calendarName: string | null;
+  bookedBy?: string | null;
+  hostName?: string;
 }
 
 interface CalendarViewModalProps {
@@ -51,7 +55,7 @@ interface CalendarViewModalProps {
   isRefreshing?: boolean;
 }
 
-type CalendarViewMode = 'month' | 'week' | 'agenda';
+type CalendarViewMode = 'day' | 'week' | 'month' | 'agenda';
 
 export default function CalendarViewModal({
   isOpen,
@@ -63,7 +67,7 @@ export default function CalendarViewModal({
   isRefreshing = false,
 }: CalendarViewModalProps) {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('agenda');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
   const [selectedCalendarName, setSelectedCalendarName] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -125,20 +129,24 @@ export default function CalendarViewModal({
   ];
 
   const handlePrev = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(new Date(year, month - 1, 1));
+    if (viewMode === 'day') {
+      setCurrentDate(new Date(currentDate.getTime() - 24 * 60 * 60 * 1000));
     } else if (viewMode === 'week') {
       setCurrentDate(new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000));
+    } else if (viewMode === 'month') {
+      setCurrentDate(new Date(year, month - 1, 1));
     } else {
       setCurrentDate(new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000));
     }
   };
 
   const handleNext = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(new Date(year, month + 1, 1));
+    if (viewMode === 'day') {
+      setCurrentDate(new Date(currentDate.getTime() + 24 * 60 * 60 * 1000));
     } else if (viewMode === 'week') {
       setCurrentDate(new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000));
+    } else if (viewMode === 'month') {
+      setCurrentDate(new Date(year, month + 1, 1));
     } else {
       setCurrentDate(new Date(currentDate.getTime() + 30 * 24 * 60 * 60 * 1000));
     }
@@ -149,6 +157,43 @@ export default function CalendarViewModal({
     setCurrentDate(today);
     setSelectedDateFilter(today);
   };
+
+  // Week days calculation (Sunday to Saturday)
+  const weekDays = useMemo(() => {
+    const d = new Date(currentDate);
+    const day = d.getDay();
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - day);
+    sunday.setHours(0, 0, 0, 0);
+
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const nextDay = new Date(sunday);
+      nextDay.setDate(sunday.getDate() + i);
+      days.push(nextDay);
+    }
+    return days;
+  }, [currentDate]);
+
+  const currentDayDateStr = currentDate.toISOString().slice(0, 10);
+  const currentDayAppts = useMemo(() => {
+    return filteredAppointments
+      .filter((a) => a.startTime.slice(0, 10) === currentDayDateStr)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [filteredAppointments, currentDayDateStr]);
+
+  const navigatorTitle = useMemo(() => {
+    if (viewMode === 'day') {
+      const isToday = currentDate.toDateString() === new Date().toDateString();
+      return `${isToday ? 'Today · ' : ''}${currentDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    if (viewMode === 'week') {
+      const start = weekDays[0];
+      const end = weekDays[6];
+      return `${start.toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    return `${monthNames[month]} ${year}`;
+  }, [viewMode, currentDate, weekDays, month, year, monthNames]);
 
   const formatMeetingMode = (type: string, titleHint: string = '') => {
     const t = (type || '').toLowerCase().replace(/[_\-\s]/g, '');
@@ -278,15 +323,26 @@ export default function CalendarViewModal({
             {/* View Mode Switcher */}
             <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200/80">
               <button
-                onClick={() => setViewMode('agenda')}
+                onClick={() => setViewMode('day')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
-                  viewMode === 'agenda'
+                  viewMode === 'day'
                     ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <List className="w-3.5 h-3.5" />
-                <span>Agenda</span>
+                <Clock className="w-3.5 h-3.5" />
+                <span>Day</span>
+              </button>
+              <button
+                onClick={() => setViewMode('week')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  viewMode === 'week'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+                <span>Week</span>
               </button>
               <button
                 onClick={() => setViewMode('month')}
@@ -298,6 +354,17 @@ export default function CalendarViewModal({
               >
                 <CalendarDays className="w-3.5 h-3.5" />
                 <span>Month</span>
+              </button>
+              <button
+                onClick={() => setViewMode('agenda')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  viewMode === 'agenda'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>Agenda</span>
               </button>
             </div>
 
@@ -316,8 +383,8 @@ export default function CalendarViewModal({
               >
                 Today
               </button>
-              <span className="text-xs font-bold text-gray-900 px-2 min-w-[110px] text-center">
-                {monthNames[month]} {year}
+              <span className="text-xs font-bold text-gray-900 px-2 min-w-[130px] text-center truncate">
+                {navigatorTitle}
               </span>
               <button
                 onClick={handleNext}
@@ -425,9 +492,455 @@ export default function CalendarViewModal({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-          {viewMode === 'agenda' ? (
-            /* AGENDA / LIST VIEW */
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
+          {/* ═══════════ DAY VIEW ═══════════ */}
+          {viewMode === 'day' && (
+            <div className="space-y-4">
+              {/* Day Header Summary & Rep Availability Strip */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Day Schedule & Rep Availability</div>
+                    <h3 className="text-base font-extrabold text-gray-900">
+                      {currentDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      📅 {currentDayAppts.length} {currentDayAppts.length === 1 ? 'Meeting' : 'Meetings'}
+                    </span>
+                    <span className="px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      {Math.max(0, agents.length - new Set(currentDayAppts.map(a => a.agentName.toLowerCase())).size)} / {agents.length || 8} Reps Free Today
+                    </span>
+                  </div>
+                </div>
+
+                {/* Rep Availability Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                  {agents.map((ag) => {
+                    const agAppts = currentDayAppts.filter(
+                      (a) => a.assignedTo === ag.ghlUserId || a.agentName.toLowerCase() === ag.name.toLowerCase()
+                    );
+                    const isBusy = agAppts.length > 0;
+
+                    return (
+                      <div
+                        key={ag.ghlUserId || ag.name}
+                        className={`p-2.5 rounded-xl border transition-all text-center space-y-1 ${
+                          isBusy
+                            ? 'bg-amber-50/50 border-amber-200 shadow-2xs'
+                            : 'bg-emerald-50/50 border-emerald-200 shadow-2xs'
+                        }`}
+                      >
+                        <div className="w-7 h-7 rounded-full bg-white font-extrabold text-xs flex items-center justify-center mx-auto border shadow-xs text-gray-800">
+                          {ag.name.charAt(0)}
+                        </div>
+                        <div className="font-bold text-xs text-gray-900 truncate" title={ag.name}>
+                          {ag.name.split(' ')[0]}
+                        </div>
+                        <div className={`text-[10px] font-extrabold ${isBusy ? 'text-amber-800' : 'text-emerald-700'}`}>
+                          {isBusy ? `${agAppts.length} booked` : '🟢 Free'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Hourly Timeline */}
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs divide-y divide-gray-100 overflow-hidden">
+                {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((hour) => {
+                  const hourStr = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
+                  const hourAppts = currentDayAppts.filter((a) => {
+                    const h = new Date(a.startTime).getHours();
+                    return h === hour;
+                  });
+
+                  const busyInHour = new Set(hourAppts.map((a) => a.agentName.toLowerCase()));
+                  const freeInHour = agents.filter((ag) => !busyInHour.has(ag.name.toLowerCase()));
+
+                  return (
+                    <div key={hour} className="p-3 sm:p-4 flex flex-col md:flex-row md:items-start gap-3 hover:bg-gray-50/40 transition-colors">
+                      {/* Hour Label */}
+                      <div className="w-24 shrink-0 text-xs font-extrabold text-gray-700 flex items-center gap-1.5 pt-1">
+                        <Clock className="w-3.5 h-3.5 text-blue-500" />
+                        <span>{hourStr}</span>
+                      </div>
+
+                      {/* Hour Content */}
+                      <div className="flex-1 min-w-0">
+                        {hourAppts.length === 0 ? (
+                          <div className="flex items-center justify-between text-xs py-1">
+                            <span className="text-[11px] text-gray-400 font-medium italic">No scheduled meetings</span>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              All Reps Free (Open Slot)
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {hourAppts.map((appt) => {
+                                const parsed = parseMeetingDetails(
+                                  appt.title,
+                                  appt.contactName,
+                                  appt.agentName,
+                                  appt.meetingLocationType
+                                );
+                                const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
+                                const ModeIcon = mode.icon;
+
+                                return (
+                                  <div
+                                    key={appt.id}
+                                    onClick={() => setSelectedAppt(appt)}
+                                    className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/30 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer group"
+                                  >
+                                    <div className="flex items-center justify-between text-[10px]">
+                                      <span className="font-extrabold text-blue-800">{formatTime(appt.startTime)}</span>
+                                      <span className={`flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold border ${mode.color}`}>
+                                        <ModeIcon className="w-2.5 h-2.5" />
+                                        <span>{mode.label}</span>
+                                      </span>
+                                    </div>
+                                    <div className="font-extrabold text-xs text-gray-900 mt-1 truncate group-hover:text-blue-600">
+                                      {parsed.clientName}
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] text-gray-600 mt-1 pt-1 border-t border-blue-100">
+                                      <span className="truncate">With: <strong className="text-gray-900">{parsed.hostName}</strong></span>
+                                      {parsed.bookedBy && (
+                                        <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 px-1 rounded">
+                                          By {parsed.bookedBy}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Free Reps Indicator for this hour */}
+                            {freeInHour.length > 0 && (
+                              <div className="text-[10px] text-gray-500 flex items-center gap-1 flex-wrap pt-0.5">
+                                <span className="font-semibold text-emerald-700">🟢 Free Reps:</span>
+                                <span className="text-gray-700 font-medium">
+                                  {freeInHour.map((ag) => ag.name.split(' ')[0]).join(', ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════ WEEK VIEW ═══════════ */}
+          {viewMode === 'week' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                {weekDays.map((dayObj) => {
+                  const dateStr = dayObj.toISOString().slice(0, 10);
+                  const isToday = new Date().toISOString().slice(0, 10) === dateStr;
+                  const dayAppts = filteredAppointments
+                    .filter((a) => a.startTime.slice(0, 10) === dateStr)
+                    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+                  const busyAgentNames = new Set(dayAppts.map((a) => a.agentName.toLowerCase()));
+                  const freeRepsCount = Math.max(0, agents.length - busyAgentNames.size);
+
+                  return (
+                    <div
+                      key={dateStr}
+                      className={`flex flex-col rounded-2xl border transition-all overflow-hidden ${
+                        isToday
+                          ? 'bg-blue-50/40 border-blue-400 shadow-sm ring-1 ring-blue-300'
+                          : 'bg-white border-gray-200'
+                      }`}
+                    >
+                      {/* Column Header */}
+                      <div
+                        onClick={() => {
+                          setCurrentDate(dayObj);
+                          setViewMode('day');
+                        }}
+                        className={`p-2.5 border-b cursor-pointer transition-colors ${
+                          isToday ? 'bg-blue-600 text-white' : 'bg-gray-50/80 hover:bg-gray-100 text-gray-800 border-gray-100'
+                        }`}
+                        title="Click to view full Day details"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold uppercase tracking-wide">
+                            {dayObj.toLocaleDateString([], { weekday: 'short' })}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                            isToday ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'
+                          }`}>
+                            {dayObj.getDate()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] mt-1 font-medium">
+                          <span className={isToday ? 'text-blue-100' : 'text-gray-500'}>
+                            {dayAppts.length} {dayAppts.length === 1 ? 'booking' : 'bookings'}
+                          </span>
+                          <span className={`font-bold ${isToday ? 'text-emerald-200' : 'text-emerald-700'}`}>
+                            {freeRepsCount > 0 ? `${freeRepsCount} free` : 'Booked'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Column Appointments List */}
+                      <div className="p-2 flex-1 space-y-2 min-h-[300px] max-h-[520px] overflow-y-auto">
+                        {dayAppts.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-center p-3 text-gray-400 min-h-[140px]">
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                              🟢 All Reps Free
+                            </span>
+                          </div>
+                        ) : (
+                          dayAppts.map((appt) => {
+                            const parsed = parseMeetingDetails(
+                              appt.title,
+                              appt.contactName,
+                              appt.agentName,
+                              appt.meetingLocationType
+                            );
+                            const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
+                            const ModeIcon = mode.icon;
+
+                            return (
+                              <div
+                                key={appt.id}
+                                onClick={() => setSelectedAppt(appt)}
+                                className="p-2 rounded-xl bg-white border border-gray-200/80 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer group space-y-1.5"
+                              >
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="font-extrabold text-blue-700">
+                                    {formatTime(appt.startTime)}
+                                  </span>
+                                  <span className={`flex items-center gap-0.5 px-1 py-0.2 rounded text-[8px] font-bold border ${mode.color}`}>
+                                    <ModeIcon className="w-2 h-2" />
+                                    <span>{mode.label}</span>
+                                  </span>
+                                </div>
+                                <div className="font-extrabold text-[11px] text-gray-900 truncate group-hover:text-blue-600">
+                                  {parsed.clientName}
+                                </div>
+                                <div className="flex items-center justify-between text-[9px] text-gray-500 pt-1 border-t border-gray-100">
+                                  <span className="truncate">w/ {parsed.hostName}</span>
+                                  {parsed.bookedBy && (
+                                    <span className="font-bold text-amber-800 bg-amber-50 px-1 rounded border border-amber-200/60">
+                                      {parsed.bookedBy}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════ MONTH VIEW ═══════════ */}
+          {viewMode === 'month' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Calendar Grid */}
+              <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm">
+                <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-500 pb-2 border-b border-gray-100 mb-2">
+                  <span>Sun</span>
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span>Sat</span>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                    <div key={`empty-${i}`} className="min-h-[72px] bg-gray-50/50 rounded-xl" />
+                  ))}
+
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const dateObj = new Date(year, month, dayNum);
+                    const dateStr = dateObj.toISOString().slice(0, 10);
+                    const isToday = new Date().toISOString().slice(0, 10) === dateStr;
+                    const isSelected =
+                      selectedDateFilter && selectedDateFilter.toISOString().slice(0, 10) === dateStr;
+
+                    const dayAppts = filteredAppointments.filter(
+                      (a) => a.startTime.slice(0, 10) === dateStr
+                    );
+
+                    return (
+                      <div
+                        key={dayNum}
+                        onClick={() => setSelectedDateFilter(dateObj)}
+                        className={`min-h-[74px] p-1.5 rounded-xl cursor-pointer transition-all border flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20'
+                            : isToday
+                            ? 'bg-blue-50/30 border-blue-200 hover:bg-blue-50'
+                            : 'bg-white border-gray-100 hover:bg-gray-50/80 hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
+                              isToday
+                                ? 'bg-blue-600 text-white'
+                                : isSelected
+                                ? 'text-blue-700 font-extrabold'
+                                : 'text-gray-700'
+                            }`}
+                          >
+                            {dayNum}
+                          </span>
+                          {dayAppts.length > 0 && (
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded-full">
+                              {dayAppts.length}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-0.5 mt-1 overflow-hidden">
+                          {dayAppts.slice(0, 2).map((a) => {
+                            const p = parseMeetingDetails(a.title, a.contactName, a.agentName, a.meetingLocationType);
+                            return (
+                              <div
+                                key={a.id}
+                                className="text-[9px] font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded truncate"
+                                title={`${p.clientName} (${formatTime(a.startTime)})`}
+                              >
+                                {formatTime(a.startTime)} {p.clientName}
+                              </div>
+                            );
+                          })}
+                          {dayAppts.length > 2 && (
+                            <div className="text-[8px] font-bold text-blue-600 pl-1">
+                              +{dayAppts.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Day Details Drawer */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex flex-col">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-gray-900">
+                      {selectedDateFilter
+                        ? selectedDateFilter.toLocaleDateString([], {
+                            weekday: 'long',
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Select a Date'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {selectedDayAppointments.length} scheduled appointment
+                      {selectedDayAppointments.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pt-3 space-y-3">
+                  {selectedDayAppointments.map((appt) => {
+                    const parsed = parseMeetingDetails(appt.title, appt.contactName, appt.agentName, appt.meetingLocationType);
+                    const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
+                    const ModeIcon = mode.icon;
+
+                    return (
+                      <div
+                        key={appt.id}
+                        onClick={() => setSelectedAppt(appt)}
+                        className="p-3 bg-gray-50 rounded-xl border border-gray-200/70 space-y-2 hover:bg-gray-100/60 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1 ${mode.color}`}
+                          >
+                            <ModeIcon className="w-2.5 h-2.5" />
+                            <span>{mode.label}</span>
+                          </span>
+                          <span className="text-xs font-bold text-blue-700">
+                            {formatTime(appt.startTime)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-extrabold text-gray-900 truncate">
+                            {parsed.clientName}
+                          </div>
+                          <div className="text-[11px] text-gray-500 truncate">
+                            {parsed.displayTitle}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">
+                            With: <span className="font-semibold text-gray-600">{parsed.hostName}</span>
+                            {parsed.bookedBy && (
+                              <span className="ml-1.5 text-amber-700 font-bold">· By: {parsed.bookedBy}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-200/50">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <img
+                              src={
+                                appt.agentAvatar ||
+                                `https://placehold.co/80x80/e2e8f0/1e293b?text=${appt.agentName.slice(0, 2)}`
+                              }
+                              alt={appt.agentName}
+                              className="w-5 h-5 rounded-full object-cover shrink-0"
+                            />
+                            <span className="text-[10px] font-bold text-gray-700 truncate">
+                              {appt.agentName}
+                            </span>
+                          </div>
+
+                          {appt.meetingUrl && (
+                            <a
+                              href={appt.meetingUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md flex items-center gap-1"
+                            >
+                              <span>Join</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {selectedDayAppointments.length === 0 && (
+                    <div className="py-12 text-center text-gray-400 text-xs">
+                      No appointments scheduled for this date.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════ AGENDA VIEW ═══════════ */}
+          {viewMode === 'agenda' && (
             <div className="space-y-6">
               {['Today', 'Tomorrow', 'This Week', 'Upcoming', 'Past'].map((groupKey) => {
                 const list = groupedAgenda[groupKey as keyof typeof groupedAgenda];
@@ -454,7 +967,7 @@ export default function CalendarViewModal({
                         return (
                           <div
                             key={appt.id}
-                            onClick={() => setSelectedAppt(selectedAppt?.id === appt.id ? null : appt)}
+                            onClick={() => setSelectedAppt(appt)}
                             className={`bg-white rounded-2xl border shadow-sm transition-all flex flex-col cursor-pointer group ${
                               selectedAppt?.id === appt.id
                                 ? 'border-blue-400 shadow-blue-100 shadow-md'
@@ -559,28 +1072,6 @@ export default function CalendarViewModal({
                                 </span>
                               )}
                             </div>
-
-                            {/* Expanded Contact Info */}
-                            {selectedAppt?.id === appt.id && (
-                              <div className="px-4 pb-4 border-t border-blue-100 bg-blue-50/40 space-y-2 pt-3">
-                                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Contact Details</div>
-                                {appt.contactPhone && (
-                                  <a href={`tel:${appt.contactPhone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 text-xs text-gray-700 hover:text-emerald-700 font-semibold">
-                                    <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    {appt.contactPhone}
-                                  </a>
-                                )}
-                                {appt.contactEmail && (
-                                  <a href={`mailto:${appt.contactEmail}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 text-xs text-gray-700 hover:text-blue-700 font-semibold truncate">
-                                    <span className="text-blue-500 text-sm shrink-0">✉</span>
-                                    <span className="truncate">{appt.contactEmail}</span>
-                                  </a>
-                                )}
-                                {!appt.contactPhone && !appt.contactEmail && (
-                                  <span className="text-[11px] text-gray-400 italic">No contact info on file</span>
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -599,198 +1090,146 @@ export default function CalendarViewModal({
                 </div>
               )}
             </div>
-          ) : (
-            /* MONTH VIEW */
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Calendar Grid (2 cols on large screen) */}
-              <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm">
-                <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-500 pb-2 border-b border-gray-100 mb-2">
-                  <span>Sun</span>
-                  <span>Mon</span>
-                  <span>Tue</span>
-                  <span>Wed</span>
-                  <span>Thu</span>
-                  <span>Fri</span>
-                  <span>Sat</span>
-                </div>
+          )}
+        </div>
 
-                <div className="grid grid-cols-7 gap-1">
-                  {/* Empty cells for leading days */}
-                  {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                    <div key={`empty-${i}`} className="min-h-[72px] bg-gray-50/50 rounded-xl" />
-                  ))}
+        {/* Selected Appointment Detail Sheet Modal */}
+        {selectedAppt && (
+          <div
+            className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setSelectedAppt(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-[420px] w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(() => {
+                const parsed = parseMeetingDetails(
+                  selectedAppt.title,
+                  selectedAppt.contactName,
+                  selectedAppt.agentName,
+                  selectedAppt.meetingLocationType
+                );
+                const mode = formatMeetingMode(selectedAppt.meetingLocationType, selectedAppt.title);
+                const ModeIcon = mode.icon;
 
-                  {/* Month days */}
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const dayNum = i + 1;
-                    const dateObj = new Date(year, month, dayNum);
-                    const dateStr = dateObj.toISOString().slice(0, 10);
-                    const isToday =
-                      new Date().toISOString().slice(0, 10) === dateStr;
-                    const isSelected =
-                      selectedDateFilter &&
-                      selectedDateFilter.toISOString().slice(0, 10) === dateStr;
-
-                    const dayAppts = filteredAppointments.filter(
-                      (a) => a.startTime.slice(0, 10) === dateStr
-                    );
-
-                    return (
-                      <div
-                        key={dayNum}
-                        onClick={() => setSelectedDateFilter(dateObj)}
-                        className={`min-h-[74px] p-1.5 rounded-xl cursor-pointer transition-all border flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20'
-                            : isToday
-                            ? 'bg-blue-50/30 border-blue-200 hover:bg-blue-50'
-                            : 'bg-white border-gray-100 hover:bg-gray-50/80 hover:border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
-                              isToday
-                                ? 'bg-blue-600 text-white'
-                                : isSelected
-                                ? 'text-blue-700 font-extrabold'
-                                : 'text-gray-700'
-                            }`}
-                          >
-                            {dayNum}
+                return (
+                  <>
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-4 text-white">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">
+                            Booking Detail
                           </span>
-                          {dayAppts.length > 0 && (
-                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded-full">
-                              {dayAppts.length}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Mini indicators */}
-                        <div className="space-y-0.5 mt-1 overflow-hidden">
-                          {dayAppts.slice(0, 2).map((a) => {
-                            const p = parseMeetingDetails(a.title, a.contactName, a.agentName, a.meetingLocationType);
-                            return (
-                              <div
-                                key={a.id}
-                                className="text-[9px] font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded truncate"
-                                title={`${p.clientName} (${formatTime(a.startTime)})`}
-                              >
-                                {formatTime(a.startTime)} {p.clientName}
-                              </div>
-                            );
-                          })}
-                          {dayAppts.length > 2 && (
-                            <div className="text-[8px] font-bold text-blue-600 pl-1">
-                              +{dayAppts.length - 2} more
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Day Details Drawer */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-gray-900">
-                      {selectedDateFilter
-                        ? selectedDateFilter.toLocaleDateString([], {
-                            weekday: 'long',
-                            month: 'short',
-                            day: 'numeric',
-                          })
-                        : 'Select a Date'}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {selectedDayAppointments.length} scheduled appointment
-                      {selectedDayAppointments.length === 1 ? '' : 's'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto pt-3 space-y-3">
-                  {selectedDayAppointments.map((appt) => {
-                    const parsed = parseMeetingDetails(appt.title, appt.contactName, appt.agentName, appt.meetingLocationType);
-                    const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
-                    const ModeIcon = mode.icon;
-
-                    return (
-                      <div
-                        key={appt.id}
-                        className="p-3 bg-gray-50 rounded-xl border border-gray-200/70 space-y-2 hover:bg-gray-100/60 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1 ${mode.color}`}
-                          >
-                            <ModeIcon className="w-2.5 h-2.5" />
-                            <span>{mode.label}</span>
-                          </span>
-                          <span className="text-xs font-bold text-blue-700">
-                            {formatTime(appt.startTime)}
-                          </span>
-                        </div>
-
-                        <div>
-                          <div className="text-xs font-extrabold text-gray-900 truncate">
-                            {parsed.clientName}
-                          </div>
-                          <div className="text-[11px] text-gray-500 truncate">
+                          <h4 className="font-extrabold text-sm text-white line-clamp-2 mt-0.5">
                             {parsed.displayTitle}
-                          </div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">
-                            With: <span className="font-semibold text-gray-600">{parsed.hostName}</span>
-                            {parsed.bookedBy && (
-                              <span className="ml-1.5 text-amber-700 font-bold">· By: {parsed.bookedBy}</span>
-                            )}
-                          </div>
+                          </h4>
                         </div>
+                        <button
+                          onClick={() => setSelectedAppt(null)}
+                          className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-200/50">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <img
-                              src={
-                                appt.agentAvatar ||
-                                `https://placehold.co/80x80/e2e8f0/1e293b?text=${appt.agentName.slice(0, 2)}`
-                              }
-                              alt={appt.agentName}
-                              className="w-5 h-5 rounded-full object-cover shrink-0"
-                            />
-                            <span className="text-[10px] font-bold text-gray-700 truncate">
-                              {appt.agentName}
-                            </span>
-                          </div>
+                      <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-white/20">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <Clock className="w-3.5 h-3.5 text-blue-200" />
+                          <span>{formatDateLabel(selectedAppt.startTime)} at {formatTime(selectedAppt.startTime)}</span>
+                        </div>
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${mode.color} bg-white`}>
+                          <ModeIcon className="w-3 h-3" />
+                          <span>{mode.label}</span>
+                        </span>
+                      </div>
+                    </div>
 
-                          {appt.meetingUrl && (
+                    <div className="p-5 space-y-3.5">
+                      {/* Client Info */}
+                      <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100">
+                        <div className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <User className="w-3 h-3" /> Client
+                        </div>
+                        <div className="font-extrabold text-sm text-gray-900">{parsed.clientName}</div>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {selectedAppt.contactPhone ? (
                             <a
-                              href={appt.meetingUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md flex items-center gap-1"
+                              href={`tel:${selectedAppt.contactPhone}`}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-xs"
                             >
-                              <span>Join</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
+                              <Phone className="w-2.5 h-2.5" />{selectedAppt.contactPhone}
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">No phone attached</span>
+                          )}
+                          {selectedAppt.contactEmail && (
+                            <a
+                              href={`mailto:${selectedAppt.contactEmail}`}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs truncate max-w-[200px]"
+                            >
+                              <span className="text-[10px]">✉</span>
+                              <span className="truncate">{selectedAppt.contactEmail}</span>
                             </a>
                           )}
                         </div>
                       </div>
-                    );
-                  })}
 
-                  {selectedDayAppointments.length === 0 && (
-                    <div className="py-12 text-center text-gray-400 text-xs">
-                      No appointments scheduled for this date.
+                      {/* Host & Booker */}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Meeting With</div>
+                          <div className="text-xs font-extrabold text-gray-900 truncate">{parsed.hostName}</div>
+                          <div className="text-[10px] text-gray-500">Sales Rep</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-100">
+                          <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-0.5">Booked By</div>
+                          <div className="text-xs font-extrabold text-amber-950 truncate">{parsed.bookedBy || selectedAppt.agentName}</div>
+                          <div className="text-[10px] text-amber-700">{parsed.bookedBy ? 'Setter Tag' : 'Calendar Owner'}</div>
+                        </div>
+                      </div>
+
+                      {/* Calendar & Status */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100 text-xs">
+                        <div>
+                          <span className="text-[10px] text-gray-400 block font-semibold">Calendar:</span>
+                          <span className="font-bold text-gray-800">{selectedAppt.calendarName || 'Default Calendar'}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                          ['cancelled','canceled','no-show'].includes(selectedAppt.status.toLowerCase())
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {selectedAppt.status.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Action Button */}
+                      {selectedAppt.meetingUrl ? (
+                        <a
+                          href={selectedAppt.meetingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Join {mode.label} Room
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedAppt(null)}
+                          className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl"
+                        >
+                          Close
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </>
+                );
+              })()}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-6 py-3.5 border-t border-gray-100 bg-white flex items-center justify-between text-xs text-gray-500">
