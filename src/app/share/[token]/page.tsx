@@ -10,13 +10,11 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import TopMetricCards from '@/components/dashboard/TopMetricCards';
-import BottlenecksBanner from '@/components/dashboard/BottlenecksBanner';
 import UpcomingMeetingsPanel from '@/components/dashboard/UpcomingMeetingsPanel';
 import AgentCardsGrid, { AgentData } from '@/components/dashboard/AgentCardsGrid';
 import PipelineVelocityFunnel from '@/components/dashboard/PipelineVelocityFunnel';
 import LeadSourceMatrix from '@/components/dashboard/LeadSourceMatrix';
 import Agent360Modal from '@/components/modals/Agent360Modal';
-import BottlenecksModal from '@/components/modals/BottlenecksModal';
 import CalendarViewModal from '@/components/modals/CalendarViewModal';
 
 interface PublicSharePageProps {
@@ -42,7 +40,6 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
   // Modals state
   const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState<boolean>(false);
-  const [isBottlenecksModalOpen, setIsBottlenecksModalOpen] = useState<boolean>(false);
 
   // Restore saved filter preferences from localStorage
   useEffect(() => {
@@ -355,19 +352,7 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
           </div>
         )}
 
-        {/* 2. Bottlenecks & Priority Alerts Banner */}
-        {bottlenecks && (
-          <div>
-            <BottlenecksBanner
-              uncontactedCount={bottlenecks.uncontactedCount || 0}
-              stuckCount={bottlenecks.stuckInContactedCount || 0}
-              agentsOverdueCount={bottlenecks.agentsWithOverdueCount || 0}
-              onOpenModal={() => setIsBottlenecksModalOpen(true)}
-            />
-          </div>
-        )}
-
-        {/* 3. Upcoming Client Meetings & Rep Availability Hub */}
+        {/* 2. Upcoming Client Meetings & Rep Availability Hub */}
         {enableBookings && (
           <div>
             <UpcomingMeetingsPanel
@@ -443,12 +428,6 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
         locationName={location?.name || shareTitle || 'Sales Command Center'}
         onRefresh={() => load(false)}
         isRefreshing={isRefreshing}
-      />
-
-      <BottlenecksModal
-        isOpen={isBottlenecksModalOpen}
-        onClose={() => setIsBottlenecksModalOpen(false)}
-        onAction={() => {}}
       />
     </div>
   );
