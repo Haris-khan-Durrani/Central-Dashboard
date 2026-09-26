@@ -261,8 +261,17 @@ export async function syncLocationData(
     let appointmentsCount = 0;
     if (loc.enableBookings !== false) {
       try {
+        let selectedCalendarIds: string[] | undefined;
+        if (loc.selectedCalendarIds) {
+          try {
+            selectedCalendarIds = JSON.parse(loc.selectedCalendarIds);
+          } catch {
+            selectedCalendarIds = loc.selectedCalendarIds.split(',').map((s) => s.trim()).filter(Boolean);
+          }
+        }
+
         const client = new GhlClient({ locationId, privateKey: token });
-        const events = await client.getCalendarEvents();
+        const events = await client.getCalendarEvents(undefined, undefined, selectedCalendarIds);
         if (Array.isArray(events) && events.length > 0) {
           appointmentsCount = events.length;
           for (const ev of events) {

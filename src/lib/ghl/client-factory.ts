@@ -158,15 +158,76 @@ export class GhlClient {
 
   /**
    * Fetch calendar events / appointments for this location
+   * GHL API v2 requires either calendarId, userId, or groupId
    */
-  async getCalendarEvents(startTime?: string, endTime?: string): Promise<any[]> {
+  async getCalendarEvents(
+    startTime?: string,
+    endTime?: string,
+    calendarIds?: string[],
+    userIds?: string[]
+  ): Promise<any[]> {
     try {
       const now = new Date();
-      // default: past 30 days to upcoming 30 days
+      // default: past 30 days to upcoming 60 days
       const start = startTime || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const end = endTime || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      const res = await this.request<any>(`/calendars/events?locationId=${this.locationId}&startTime=${start}&endTime=${end}`);
-      return res.events || res.appointments || [];
+      const end = endTime || new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Determine calendar IDs to query
+      let targetCalIds = Array.isArray(calendarIds) && calendarIds.length > 0 ? calendarIds : [];
+      if (targetCalIds.length === 0) {
+        const cals = await this.getCalendars();
+        targetCalIds = cals.map((c: any) => String(c.id || c._id || '')).filter(Boolean);
+      }
+
+      const allEvents: any[] = [];
+      const seenIds = new Set<string>();
+
+      if (targetCalIds.length > 0) {
+        for (const calId of targetCalIds) {
+          try {
+            const res = await this.request<any>(
+              `/calendars/events?locationId=${this.locationId}&calendarId=${calId}&startTime=${start}&endTime=${end}`
+            );
+            const list = res.events || res.appointments || [];
+            for (const item of list) {
+              const id = String(item.id || item._id || item.appointmentId || '');
+              if (id && !seenIds.has(id)) {
+                seenIds.add(id);
+                allEvents.push({ ...item, calendarId: item.calendarId || calId });
+              }
+            }
+          } catch (calErr: any) {
+            // continue silently
+          }
+        }
+      } else {
+        // Fallback: Query by user IDs if no calendar IDs are found
+        let targetUserIds = Array.isArray(userIds) && userIds.length > 0 ? userIds : [];
+        if (targetUserIds.length === 0) {
+          const users = await this.getUsers();
+          targetUserIds = users.map((u: any) => String(u.id || u._id || u.userId || '')).filter(Boolean);
+        }
+
+        for (const uId of targetUserIds.slice(0, 15)) {
+          try {
+            const res = await this.request<any>(
+              `/calendars/events?locationId=${this.locationId}&userId=${uId}&startTime=${start}&endTime=${end}`
+            );
+            const list = res.events || res.appointments || [];
+            for (const item of list) {
+              const id = String(item.id || item._id || item.appointmentId || '');
+              if (id && !seenIds.has(id)) {
+                seenIds.add(id);
+                allEvents.push(item);
+              }
+            }
+          } catch (uErr: any) {
+            // continue silently
+          }
+        }
+      }
+
+      return allEvents;
     } catch (err: any) {
       if (err?.message?.includes('scope') || err?.message?.includes('401')) {
         console.info(`[GHL Info] Calendars events scope not granted for location ${this.locationId} - appointments sync skipped.`);
