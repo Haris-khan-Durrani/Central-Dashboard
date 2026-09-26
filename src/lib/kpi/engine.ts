@@ -368,6 +368,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       select: {
         id: true,
         title: true,
+        contactId: true,
         contactName: true,
         contactPhone: true,
         contactEmail: true,
@@ -449,6 +450,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       return {
         id: a.id,
         title: a.title || 'Client Appointment',
+        contactId: a.contactId ?? null,
         contactName: a.contactName || 'Lead Appointment',
         contactPhone: a.contactPhone,
         contactEmail: a.contactEmail,
@@ -458,7 +460,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
         startTime: a.startTime.toISOString(),
         endTime: a.endTime ? a.endTime.toISOString() : null,
         status: a.status,
-        meetingLocationType: a.meetingLocationType || 'zoom',
+        meetingLocationType: a.meetingLocationType || 'custom',
         meetingUrl: a.meetingUrl,
         calendarName: a.calendarName,
       };
@@ -692,6 +694,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     return {
       id: a.id,
       title: a.title || 'Client Appointment',
+      contactId: a.contactId ?? null,
       contactName: a.contactName || 'Lead Appointment',
       contactPhone: a.contactPhone,
       contactEmail: a.contactEmail,
@@ -701,7 +704,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       startTime: a.startTime.toISOString(),
       endTime: a.endTime ? a.endTime.toISOString() : null,
       status: a.status,
-      meetingLocationType: a.meetingLocationType || 'zoom',
+      meetingLocationType: a.meetingLocationType || 'custom',
       meetingUrl: a.meetingUrl,
       calendarName: a.calendarName,
     };

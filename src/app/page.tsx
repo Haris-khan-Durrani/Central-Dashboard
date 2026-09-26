@@ -406,7 +406,7 @@ export default function DashboardPage() {
         {/* Footer */}
         <footer className="border-t border-gray-200 bg-white py-4 px-6 text-center text-xs text-gray-400">
           <p>
-            Sales Command Center & KPI Intelligence Engine · Powered by GoHighLevel API v3 & MySQL Sync Layer
+            CRM Command Center · GoHighLevel CRM Intelligence Engine · Powered by GHL API v3 &amp; MySQL Sync Layer
           </p>
         </footer>
       </div>

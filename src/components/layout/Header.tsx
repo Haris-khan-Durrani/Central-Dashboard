@@ -188,9 +188,8 @@ export default function Header({
     return { dateFormatted, timeFormatted, relative };
   };
 
-  // Meeting booking mode badge renderer
   const renderBookingModeBadge = (mode: string) => {
-    const m = (mode || '').toLowerCase();
+    const m = (mode || '').toLowerCase().replace(/[_\-\s]/g, '');
     if (m.includes('zoom')) {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 flex items-center gap-1 border border-blue-200">
@@ -198,10 +197,17 @@ export default function Header({
         </span>
       );
     }
-    if (m.includes('meet') || m.includes('google')) {
+    if (m.includes('google') || m === 'meet' || m === 'googlemeet') {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 flex items-center gap-1 border border-emerald-200">
           <Video className="w-3 h-3 text-emerald-600" /> Google Meet
+        </span>
+      );
+    }
+    if (m.includes('teams') || m.includes('microsoft')) {
+      return (
+        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 flex items-center gap-1 border border-indigo-200">
+          <Video className="w-3 h-3 text-indigo-600" /> MS Teams
         </span>
       );
     }
@@ -212,16 +218,17 @@ export default function Header({
         </span>
       );
     }
-    if (m.includes('person') || m.includes('office') || m.includes('site')) {
+    if (m.includes('person') || m.includes('office') || m.includes('site') || m.includes('address') || m === 'inperson') {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 flex items-center gap-1 border border-amber-200">
           <Building2 className="w-3 h-3 text-amber-600" /> In-Person
         </span>
       );
     }
+    // GHL values 'custom', 'default', 'none' etc → Direct Meeting
     return (
       <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-700 flex items-center gap-1 border border-gray-200">
-        <Calendar className="w-3 h-3 text-gray-500" /> {mode || 'Direct Meeting'}
+        <Calendar className="w-3 h-3 text-gray-500" /> {mode && !['custom','default','none',''].includes(mode.toLowerCase()) ? mode : 'Direct Meeting'}
       </span>
     );
   };
@@ -294,7 +301,7 @@ export default function Header({
               <Zap className="w-4 h-4" />
             </div>
             <h1 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight shrink-0">
-              Sales Command Center
+              CRM Command Center
             </h1>
           </div>
 
