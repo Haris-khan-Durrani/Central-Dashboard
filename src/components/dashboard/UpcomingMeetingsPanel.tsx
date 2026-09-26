@@ -345,7 +345,7 @@ function TodaysMeetingTicker({ meetings }: { meetings: UpcomingMeetingItem[] }) 
 }
 
 export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOpenCalendar, currency = 'AED' }: UpcomingMeetingsPanelProps) {
-  const [filterPeriod, setFilterPeriod] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all');
+  const [filterPeriod, setFilterPeriod] = useState<'all' | 'today' | 'tomorrow' | 'week'>('today');
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('all');
   const [viewTab, setViewTab] = useState<'meetings' | 'availability'>('meetings');
   const [selectedMeeting, setSelectedMeeting] = useState<UpcomingMeetingItem | null>(null);
@@ -462,8 +462,23 @@ export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOp
           {viewTab === 'meetings' && (
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-0.5">
-                {[{id:'all',label:'All'},{id:'today',label:'Today'},{id:'tomorrow',label:'Tomorrow'},{id:'week',label:'Week'}].map((p) => (
-                  <button key={p.id} onClick={() => setFilterPeriod(p.id as any)} className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${filterPeriod === p.id ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>{p.label}</button>
+                {[
+                  { id: 'today', label: `Today (${meetingsTodayCount})` },
+                  { id: 'tomorrow', label: 'Tomorrow' },
+                  { id: 'week', label: 'Week' },
+                  { id: 'all', label: `All (${meetings.length})` },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setFilterPeriod(p.id as any)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+                      filterPeriod === p.id
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
                 ))}
               </div>
               {agents.length > 0 && (
@@ -479,16 +494,29 @@ export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOp
         {viewTab === 'meetings' && (
           <>
             {filteredMeetings.length === 0 ? (
-              <div className="py-7 px-5 rounded-2xl border border-dashed border-gray-200 text-center space-y-3 bg-gray-50/60">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600"><Calendar className="w-5 h-5" /></div>
+              <div className="py-6 px-5 rounded-2xl border border-dashed border-gray-200 text-center space-y-2.5 bg-gray-50/60">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+                  <Calendar className="w-4 h-4" />
+                </div>
                 <div>
-                  <div className="text-xs font-bold text-gray-800">No scheduled meetings recorded yet</div>
-                  <p className="text-[11px] text-gray-500 max-w-md mx-auto mt-1">{filterPeriod !== 'all' ? `No appointments for "${filterPeriod}". Try "All".` : 'When clients book through GHL calendars, they appear here live.'}</p>
+                  <div className="text-xs font-bold text-gray-800">
+                    No meetings scheduled for {filterPeriod === 'today' ? 'Today' : filterPeriod}
+                  </div>
+                  <p className="text-[11px] text-gray-500 max-w-md mx-auto mt-0.5">
+                    {meetings.length > 0
+                      ? `There are ${meetings.length} other scheduled meetings in your calendar.`
+                      : 'When clients book through GHL calendars, they will appear here live.'}
+                  </p>
                 </div>
-                <div className="max-w-md mx-auto bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 text-left">
-                  <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5 mb-1">💡 Enable Live Calendar Sync in GHL:</div>
-                  <p className="text-[10px] text-amber-800 leading-relaxed">Ensure your <strong>Private Integration Token</strong> has <code className="bg-amber-100 px-1 rounded font-mono">calendars.readonly</code> and <code className="bg-amber-100 px-1 rounded font-mono">calendars/events.readonly</code> in GHL Settings → Developers.</p>
-                </div>
+                {meetings.length > 0 && filterPeriod !== 'all' && (
+                  <button
+                    onClick={() => setFilterPeriod('all')}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-xs active:scale-95 inline-flex items-center gap-1.5"
+                  >
+                    <span>View All {meetings.length} Scheduled Meetings</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
