@@ -294,40 +294,67 @@ export default function CalendarViewModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden text-gray-900">
-        
-        {/* Top Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/30">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-7xl w-full max-h-[94vh] flex flex-col overflow-hidden text-gray-900">
+        {/* Top Header - Tier 1 */}
+        <div className="px-6 py-3.5 border-b border-gray-100 flex items-center justify-between gap-4 bg-gradient-to-r from-blue-50/40 via-white to-indigo-50/20">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
               <CalendarIcon className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-extrabold text-gray-900 tracking-tight truncate">
                   Appointment Calendar & Schedule
                 </h2>
-                <span className="px-2 py-0.5 text-[11px] font-bold bg-blue-100 text-blue-700 rounded-full border border-blue-200">
+                <span className="px-2 py-0.5 text-[11px] font-bold bg-blue-50 text-blue-700 rounded-full border border-blue-200/80">
                   {filteredAppointments.length} Bookings
                 </span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Sync
+                </span>
               </div>
-              <p className="text-xs text-gray-500 font-medium">
-                Live synced appointments for <span className="font-semibold text-gray-800">{locationName}</span>
+              <p className="text-xs text-gray-500 font-medium truncate">
+                Live appointments for <span className="font-semibold text-gray-800">{locationName}</span>
               </p>
             </div>
           </div>
 
-          {/* Controls: Mode Switcher & Date Navigation */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Header Actions: Refresh & Always-Pinned Close Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50/80 rounded-xl border border-gray-200 transition-all shadow-2xs"
+                title="Refresh Calendar"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors border border-transparent hover:border-gray-200"
+              title="Close Calendar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation & Controls Toolbar - Tier 2 */}
+        <div className="px-6 py-2.5 border-b border-gray-100 bg-gray-50/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          {/* Left: View Mode Segmented Switcher & Date Navigator */}
+          <div className="flex items-center gap-2.5 flex-wrap">
             {/* View Mode Switcher */}
-            <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200/80">
+            <div className="flex items-center p-1 bg-white rounded-xl border border-gray-200/90 shadow-2xs">
               <button
                 onClick={() => setViewMode('day')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                   viewMode === 'day'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -337,8 +364,8 @@ export default function CalendarViewModal({
                 onClick={() => setViewMode('week')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                   viewMode === 'week'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 <Columns3 className="w-3.5 h-3.5" />
@@ -348,8 +375,8 @@ export default function CalendarViewModal({
                 onClick={() => setViewMode('month')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                   viewMode === 'month'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 <CalendarDays className="w-3.5 h-3.5" />
@@ -359,8 +386,8 @@ export default function CalendarViewModal({
                 onClick={() => setViewMode('agenda')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                   viewMode === 'agenda'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 <List className="w-3.5 h-3.5" />
@@ -369,99 +396,75 @@ export default function CalendarViewModal({
             </div>
 
             {/* Date Navigator */}
-            <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-white border border-gray-200/90 rounded-xl p-1 shadow-2xs">
               <button
                 onClick={handlePrev}
-                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Previous"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={handleToday}
-                className="px-2.5 py-1 text-xs font-bold text-gray-700 hover:text-blue-600 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
               >
                 Today
               </button>
-              <span className="text-xs font-bold text-gray-900 px-2 min-w-[130px] text-center truncate">
+              <span className="text-xs font-extrabold text-gray-900 px-2 min-w-[130px] text-center truncate">
                 {navigatorTitle}
               </span>
               <button
                 onClick={handleNext}
-                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Next"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Refresh Button */}
-            {onRefresh && (
-              <button
-                onClick={onRefresh}
-                disabled={isRefreshing}
-                className="p-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl border border-gray-200 transition-all shadow-sm"
-                title="Refresh Calendar"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-              </button>
-            )}
-
-            {/* Close */}
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/70 flex flex-wrap items-center gap-3 text-xs">
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search lead, agent, phone or meeting title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 font-medium"
-            />
           </div>
 
-          {/* Filter by Agent */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-500 font-semibold flex items-center gap-1">
-              <User className="w-3.5 h-3.5 text-gray-400" />
-              Agent:
-            </span>
+          {/* Right: Search & Filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search Box */}
+            <div className="relative min-w-[180px] max-w-[240px] flex-1">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search bookings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 font-medium shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Filter by Agent */}
             <select
               value={selectedAgentId}
               onChange={(e) => setSelectedAgentId(e.target.value)}
-              className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500"
+              className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500 shadow-2xs"
             >
-              <option value="all">All Agents ({agents.length})</option>
+              <option value="all">All Reps ({agents.length})</option>
               {agents.map((agent) => (
                 <option key={agent.ghlUserId} value={agent.ghlUserId}>
                   {agent.name}
                 </option>
               ))}
             </select>
-          </div>
 
-          {/* Filter by Calendar */}
-          {availableCalendars.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 font-semibold flex items-center gap-1">
-                <CalendarIcon className="w-3.5 h-3.5 text-gray-400" />
-                Calendar:
-              </span>
+            {/* Filter by Calendar */}
+            {availableCalendars.length > 1 && (
               <select
                 value={selectedCalendarName}
                 onChange={(e) => setSelectedCalendarName(e.target.value)}
-                className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500"
+                className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500 shadow-2xs"
               >
                 <option value="all">All Calendars</option>
                 {availableCalendars.map((cal) => (
@@ -470,24 +473,33 @@ export default function CalendarViewModal({
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-500 font-semibold flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-gray-400" />
-              Status:
-            </span>
+            {/* Status Filter */}
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500"
+              className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-500 shadow-2xs"
             >
-              <option value="all">All Statuses</option>
-              <option value="confirmed">Confirmed / Booked</option>
-              <option value="cancelled">Cancelled / No-Show</option>
+              <option value="all">All Status</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
+
+            {/* Reset Filters button if any active */}
+            {(selectedAgentId !== 'all' || selectedCalendarName !== 'all' || selectedStatus !== 'all' || searchQuery) && (
+              <button
+                onClick={() => {
+                  setSelectedAgentId('all');
+                  setSelectedCalendarName('all');
+                  setSelectedStatus('all');
+                  setSearchQuery('');
+                }}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline px-1"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
 
@@ -516,31 +528,40 @@ export default function CalendarViewModal({
                   </div>
                 </div>
 
-                {/* Rep Availability Cards Grid */}
+                {/* Rep Availability Cards Grid - Click to filter */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                   {agents.map((ag) => {
                     const agAppts = currentDayAppts.filter(
                       (a) => a.assignedTo === ag.ghlUserId || a.agentName.toLowerCase() === ag.name.toLowerCase()
                     );
                     const isBusy = agAppts.length > 0;
+                    const isSelected = selectedAgentId === ag.ghlUserId;
 
                     return (
                       <div
                         key={ag.ghlUserId || ag.name}
-                        className={`p-2.5 rounded-xl border transition-all text-center space-y-1 ${
-                          isBusy
-                            ? 'bg-amber-50/50 border-amber-200 shadow-2xs'
-                            : 'bg-emerald-50/50 border-emerald-200 shadow-2xs'
+                        onClick={() => setSelectedAgentId(isSelected ? 'all' : ag.ghlUserId)}
+                        className={`p-2.5 rounded-xl border transition-all text-center space-y-1 cursor-pointer hover:scale-[1.02] active:scale-95 ${
+                          isSelected
+                            ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/30 shadow-xs'
+                            : isBusy
+                            ? 'bg-amber-50/60 border-amber-200/90 hover:border-amber-300 shadow-2xs'
+                            : 'bg-emerald-50/60 border-emerald-200/90 hover:border-emerald-300 shadow-2xs'
                         }`}
+                        title={`Click to ${isSelected ? 'clear filter' : `filter schedule for ${ag.name}`}`}
                       >
-                        <div className="w-7 h-7 rounded-full bg-white font-extrabold text-xs flex items-center justify-center mx-auto border shadow-xs text-gray-800">
+                        <div className={`w-8 h-8 rounded-full font-extrabold text-xs flex items-center justify-center mx-auto border shadow-2xs ${
+                          isSelected ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-800 border-gray-200'
+                        }`}>
                           {ag.name.charAt(0)}
                         </div>
-                        <div className="font-bold text-xs text-gray-900 truncate" title={ag.name}>
+                        <div className="font-extrabold text-xs text-gray-900 truncate" title={ag.name}>
                           {ag.name.split(' ')[0]}
                         </div>
-                        <div className={`text-[10px] font-extrabold ${isBusy ? 'text-amber-800' : 'text-emerald-700'}`}>
-                          {isBusy ? `${agAppts.length} booked` : '🟢 Free'}
+                        <div className={`text-[10px] font-bold ${
+                          isSelected ? 'text-blue-700' : isBusy ? 'text-amber-800' : 'text-emerald-700'
+                        }`}>
+                          {isSelected ? '✓ Filtering' : isBusy ? `🟡 ${agAppts.length} booked` : '🟢 Free'}
                         </div>
                       </div>
                     );
