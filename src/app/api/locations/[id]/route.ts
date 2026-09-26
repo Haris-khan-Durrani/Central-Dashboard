@@ -53,10 +53,16 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       },
     });
 
-    // Update agents visibility if provided
+    // Update agents visibility & targets if provided
     if (Array.isArray(agents) && agents.length > 0) {
+      const currentMonth = new Date().toISOString().slice(0, 7);
       for (const a of agents) {
         if (!a.ghlUserId) continue;
+        const targetRev =
+          typeof a.targetRevenue === 'number' && !isNaN(a.targetRevenue)
+            ? a.targetRevenue
+            : Number(a.targetRevenue) || 50000;
+
         await prisma.user.upsert({
           where: {
             locationId_ghlUserId: {
@@ -75,6 +81,26 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             role: a.role || 'Sales Consultant',
             avatarUrl: a.avatarUrl || null,
             isActive: a.isActive !== false,
+          },
+        });
+
+        // Upsert custom target into kpi_targets table
+        await prisma.kpiTarget.upsert({
+          where: {
+            locationId_ghlUserId_periodMonth: {
+              locationId,
+              ghlUserId: a.ghlUserId,
+              periodMonth: currentMonth,
+            },
+          },
+          create: {
+            locationId,
+            ghlUserId: a.ghlUserId,
+            periodMonth: currentMonth,
+            revenueTarget: targetRev,
+          },
+          update: {
+            revenueTarget: targetRev,
           },
         });
       }

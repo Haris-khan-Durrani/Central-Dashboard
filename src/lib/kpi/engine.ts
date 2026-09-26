@@ -440,10 +440,10 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     }
   }
 
-  // Upcoming bookings for status bar popup (next meetings from 15 min ago onwards, non-cancelled)
+  // Upcoming bookings for dashboard panel & status bar popup (next meetings from 15 min ago onwards, non-cancelled)
   const upcomingBookings = dbAppointments
     .filter((a) => a.startTime >= new Date(now.getTime() - 15 * 60 * 1000) && a.status !== 'cancelled')
-    .slice(0, 15)
+    .slice(0, 50)
     .map((a) => {
       const assignedUser = dbUsers.find((u) => u.ghlUserId === a.assignedTo);
       return {
@@ -553,14 +553,19 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     agentStageBreakdownMap[u][stageName] = (agentStageBreakdownMap[u][stageName] || 0) + 1;
   }
 
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const targets = await prisma.kpiTarget.findMany({ where: { locationId } });
-  const targetMap = new Map(targets.map((t) => [t.ghlUserId, t]));
+  const targetMap = new Map<string, number>();
+  for (const t of targets) {
+    if (!targetMap.has(t.ghlUserId) || t.periodMonth === currentMonthStr) {
+      targetMap.set(t.ghlUserId, t.revenueTarget);
+    }
+  }
 
   const agents = dbUsers.map((u) => {
     const stats = agentOppMap[u.ghlUserId] || { total: 0, worked: 0, won: 0, lost: 0, revenue: 0 };
     const convRate = stats.total > 0 ? (stats.won / stats.total) * 100 : 0;
-    const tgt = targetMap.get(u.ghlUserId);
-    const targetRevenue = tgt ? tgt.revenueTarget : 150000;
+    const targetRevenue = targetMap.get(u.ghlUserId) ?? 50000;
     const targetProgress = targetRevenue > 0 ? Math.min(135, Math.round((stats.revenue / targetRevenue) * 100)) : 0;
 
     let pace = 'On Track';

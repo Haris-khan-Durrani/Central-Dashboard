@@ -68,8 +68,6 @@ export default function CalendarViewModal({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDateFilter, setSelectedDateFilter] = useState<Date | null>(new Date());
 
-  if (!isOpen) return null;
-
   // Extract distinct calendar names
   const availableCalendars = useMemo(() => {
     const set = new Set<string>();
@@ -226,6 +224,8 @@ export default function CalendarViewModal({
     const dateStr = selectedDateFilter.toISOString().slice(0, 10);
     return filteredAppointments.filter((a) => a.startTime.slice(0, 10) === dateStr);
   }, [filteredAppointments, selectedDateFilter]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

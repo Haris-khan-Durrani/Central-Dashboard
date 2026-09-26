@@ -37,15 +37,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const result = await client.testConnection();
 
     if (result.success && result.agents) {
-      // Check if location or agents exist in DB to preserve saved isActive states
-      const dbUsers = await prisma.user.findMany({
-        where: { locationId },
-        select: { ghlUserId: true, isActive: true },
-      });
+      // Check if location or agents exist in DB to preserve saved isActive states & targetRevenue
+      const [dbUsers, dbTargets] = await Promise.all([
+        prisma.user.findMany({
+          where: { locationId },
+          select: { ghlUserId: true, isActive: true },
+        }),
+        prisma.kpiTarget.findMany({
+          where: { locationId },
+          select: { ghlUserId: true, revenueTarget: true },
+        }),
+      ]);
       const dbMap = new Map(dbUsers.map((u) => [u.ghlUserId, u.isActive]));
+      const targetMap = new Map(dbTargets.map((t) => [t.ghlUserId, t.revenueTarget]));
+
       result.agents = result.agents.map((a: any) => ({
         ...a,
         isActive: dbMap.has(a.ghlUserId) ? (dbMap.get(a.ghlUserId) as boolean) : true,
+        targetRevenue: targetMap.get(a.ghlUserId) ?? 50000,
       }));
     }
 

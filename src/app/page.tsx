@@ -13,6 +13,7 @@ import BottlenecksModal from '@/components/modals/BottlenecksModal';
 import SubAccountSettingsModal from '@/components/modals/SubAccountSettingsModal';
 import ShareModal from '@/components/modals/ShareModal';
 import CalendarViewModal from '@/components/modals/CalendarViewModal';
+import UpcomingMeetingsPanel from '@/components/dashboard/UpcomingMeetingsPanel';
 import { useLocationContext } from '@/context/LocationContext';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -357,7 +358,19 @@ export default function DashboardPage() {
                 />
               </div>
 
-              {/* 3. Sales Team Performance & Agent Cards */}
+              {/* 3. Upcoming Client Meetings & Agent Availability Hub */}
+              {kpiData?.location?.enableBookings !== false && (
+                <div id="meetings-section">
+                  <UpcomingMeetingsPanel
+                    meetings={kpiData.upcomingBookings || []}
+                    agents={kpiData.agents || []}
+                    onOpenCalendar={() => setIsCalendarModalOpen(true)}
+                    currency={currency}
+                  />
+                </div>
+              )}
+
+              {/* 4. Sales Team Performance & Agent Cards */}
               <div id="team-section">
                 <AgentCardsGrid
                   agents={kpiData.agents || []}

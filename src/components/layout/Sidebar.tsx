@@ -36,6 +36,12 @@ export default function Sidebar({
       }
     }
     if (section === 'calendar') {
+      const el = document.getElementById('meetings-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+        if (onNavigate) onNavigate('calendar');
+        return;
+      }
       if (onOpenCalendar) {
         onOpenCalendar();
         return;

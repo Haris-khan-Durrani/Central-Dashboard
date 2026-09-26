@@ -64,11 +64,11 @@ export default function AgentCardsGrid({
     return b.leads - a.leads;
   });
 
-  const formatRevenue = (val: number) => {
+  const formatRevenue = (val: number, showZero = false) => {
     if (val >= 1000000) return `${currency} ${(val / 1000000).toFixed(1)}M`;
     if (val >= 1000) return `${currency} ${(val / 1000).toFixed(0)}K`;
     if (val > 0) return `${currency} ${val.toLocaleString()}`;
-    return null;
+    return showZero ? `${currency} 0` : null;
   };
 
   return (
@@ -102,39 +102,54 @@ export default function AgentCardsGrid({
         {sortedAgents.map((agent) => (
           <div
             key={agent.id}
-            className="bg-white rounded-2xl p-6 card-shadow card-shadow-hover border border-gray-100 flex flex-col justify-between group transition-all"
+            className="bg-white rounded-2xl p-5 card-shadow card-shadow-hover border border-gray-100 flex flex-col justify-between group transition-all"
           >
             <div className="flex-1 flex flex-col">
-              {/* Header Info */}
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
+              {/* Header Info: Full width identity */}
+              <div className="flex items-start justify-between gap-2.5 mb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="relative shrink-0">
                     <img
-                      src={agent.avatarUrl || 'https://placehold.co/150x150/e2e8f0/1e293b?text=' + agent.name.slice(0, 2)}
+                      src={
+                        agent.avatarUrl ||
+                        'https://placehold.co/150x150/e2e8f0/1e293b?text=' + agent.name.slice(0, 2)
+                      }
                       alt={agent.name}
-                      className="w-12 h-12 rounded-2xl object-cover border-2 border-blue-500/30 group-hover:border-blue-500 transition-all shadow-sm"
+                      className="w-10 h-10 rounded-xl object-cover border-2 border-blue-500/20 group-hover:border-blue-500 transition-all shadow-2xs"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src =
                           'https://placehold.co/150x150/e2e8f0/1e293b?text=' + agent.name.slice(0, 2);
                       }}
                     />
-                    <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white"></span>
+                    <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-bold text-gray-900 text-base group-hover:text-blue-600 transition-colors">
-                        {agent.name}
-                      </h3>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded">
-                        ● LIVE
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">{agent.role}</p>
+                  <div className="min-w-0 flex-1">
+                    <h3
+                      className="font-bold text-gray-900 text-sm sm:text-base group-hover:text-blue-600 transition-colors truncate"
+                      title={agent.name}
+                    >
+                      {agent.name}
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium truncate">{agent.role || 'Sales Consultant'}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-semibold text-gray-400">Conversion</div>
-                  <div className="text-sm font-extrabold text-blue-600">{agent.conversion}</div>
+
+                {/* Top-Right LIVE status badge */}
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-full shrink-0 flex items-center gap-1 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>LIVE</span>
+                </span>
+              </div>
+
+              {/* Dedicated Leads & Conversion Dual-Metric Bar */}
+              <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50/90 p-1.5 rounded-xl border border-gray-100">
+                <div className="bg-white rounded-lg px-2.5 py-1.5 border border-gray-200/70 shadow-2xs flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-gray-500">Total Leads</span>
+                  <span className="text-xs font-black text-gray-900">{agent.leads}</span>
+                </div>
+                <div className="bg-blue-50/70 rounded-lg px-2.5 py-1.5 border border-blue-200/70 shadow-2xs flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-blue-700">Conversion</span>
+                  <span className="text-xs font-black text-blue-700">{agent.conversion}</span>
                 </div>
               </div>
 
@@ -227,8 +242,8 @@ export default function AgentCardsGrid({
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 font-medium">Monthly Revenue Target</span>
                   <span className="text-gray-900 font-bold">
-                    {formatRevenue(agent.revenue)} /{' '}
-                    <span className="text-gray-400 font-normal">{formatRevenue(agent.targetRevenue)}</span>
+                    {formatRevenue(agent.revenue, true)} /{' '}
+                    <span className="text-gray-400 font-normal">{formatRevenue(agent.targetRevenue, true)}</span>
                   </span>
                 </div>
                 <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-200">

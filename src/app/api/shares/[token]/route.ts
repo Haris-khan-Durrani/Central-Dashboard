@@ -61,6 +61,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
         name: data.location.name,
         currency: data.location.currency,
         timezone: data.location.timezone,
+        enableBookings: data.location.enableBookings !== false,
         lastSyncAt: data.location.lastSyncAt,
         // ❌ NO encryptedPrivateKey or keyHint
       },

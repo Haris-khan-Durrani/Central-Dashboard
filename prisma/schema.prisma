@@ -48,6 +48,7 @@ model User {
   role          String       @default("Sales Consultant") @db.VarChar(100)
   avatarUrl     String?      @map("avatar_url") @db.Text
   isActive      Boolean      @default(true) @map("is_active")
+  targetRevenue Float?       @default(50000) @map("target_revenue")
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 

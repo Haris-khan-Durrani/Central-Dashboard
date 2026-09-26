@@ -22,6 +22,7 @@ import {
   EyeOff,
   UserCheck,
   UserX,
+  Target,
 } from 'lucide-react';
 import { useLocationContext, LocationItem } from '@/context/LocationContext';
 
@@ -38,6 +39,7 @@ export interface DiscoveredAgent {
   role: string;
   avatarUrl: string | null;
   isActive: boolean;
+  targetRevenue?: number;
 }
 
 export interface DiscoveredCalendar {
@@ -76,6 +78,7 @@ export default function SubAccountSettingsModal({
 
   const [discoveredAgents, setDiscoveredAgents] = useState<DiscoveredAgent[]>([]);
   const [agentSearch, setAgentSearch] = useState('');
+  const [bulkTargetInput, setBulkTargetInput] = useState<number>(50000);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
   const [discoveredCalendars, setDiscoveredCalendars] = useState<DiscoveredCalendar[]>([]);
@@ -147,6 +150,7 @@ export default function SubAccountSettingsModal({
             role: a.role,
             avatarUrl: a.avatarUrl,
             isActive: a.isActive !== false,
+            targetRevenue: a.targetRevenue ?? 50000,
           }))
         );
       }
@@ -205,6 +209,19 @@ export default function SubAccountSettingsModal({
     setDiscoveredAgents((prev) => prev.map((a) => ({ ...a, isActive: select })));
   };
 
+  const handleUpdateAgentTarget = (ghlUserId: string, targetRevenue: number) => {
+    setDiscoveredAgents((prev) =>
+      prev.map((a) => (a.ghlUserId === ghlUserId ? { ...a, targetRevenue } : a))
+    );
+  };
+
+  const handleApplyBulkTarget = () => {
+    setDiscoveredAgents((prev) =>
+      prev.map((a) => ({ ...a, targetRevenue: bulkTargetInput }))
+    );
+    onToast(`Applied ${bulkTargetInput.toLocaleString()} ${formData.currency || 'AED'} target to all agents.`);
+  };
+
   const handleToggleCalendar = (id: string) => {
     setDiscoveredCalendars((prev) =>
       prev.map((c) => (c.id === id ? { ...c, isSelected: !c.isSelected } : c))
@@ -241,19 +258,23 @@ export default function SubAccountSettingsModal({
       });
 
       if (data.success && Array.isArray(data.agents)) {
-        // Merge with existing discoveredAgents to keep any active toggles
+        // Merge with existing discoveredAgents to keep any active toggles & targets
         setDiscoveredAgents((prev) => {
-          const prevMap = new Map(prev.map((a) => [a.ghlUserId, a.isActive]));
-          return data.agents.map((a: any) => ({
-            ghlUserId: a.ghlUserId,
-            name: a.name,
-            email: a.email,
-            role: a.role,
-            avatarUrl: a.avatarUrl,
-            isActive: prevMap.has(a.ghlUserId)
-              ? (prevMap.get(a.ghlUserId) as boolean)
-              : a.isActive !== false,
-          }));
+          const prevMap = new Map(
+            prev.map((a) => [a.ghlUserId, { isActive: a.isActive, targetRevenue: a.targetRevenue }])
+          );
+          return data.agents.map((a: any) => {
+            const existing = prevMap.get(a.ghlUserId);
+            return {
+              ghlUserId: a.ghlUserId,
+              name: a.name,
+              email: a.email,
+              role: a.role,
+              avatarUrl: a.avatarUrl,
+              isActive: existing ? existing.isActive : a.isActive !== false,
+              targetRevenue: existing?.targetRevenue ?? a.targetRevenue ?? 50000,
+            };
+          });
         });
       }
 
@@ -883,20 +904,20 @@ export default function SubAccountSettingsModal({
                   </div>
                 )}
 
-                {/* Agent Visibility Selection Panel */}
+                {/* Agent Visibility & Target Revenue Configuration Panel */}
                 {(discoveredAgents.length > 0 || isLoadingAgents) && (
                   <div className="bg-white rounded-2xl p-4 border border-blue-200 shadow-sm space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
                       <div>
                         <div className="font-bold text-gray-900 text-xs flex items-center gap-2">
                           <Users className="w-4 h-4 text-blue-600" />
-                          <span>Sales Agent Visibility</span>
+                          <span>Sales Agents & Revenue Targets</span>
                           <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold rounded-full border border-blue-100">
                             {discoveredAgents.filter((a) => a.isActive).length} of {discoveredAgents.length} visible
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                          Select the agents you want to show on the Central Dashboard. Unchecked agents will be hidden.
+                          Set custom monthly revenue targets for each sales rep and select who appears on the Central Dashboard.
                         </p>
                       </div>
 
@@ -920,6 +941,38 @@ export default function SubAccountSettingsModal({
                       </div>
                     </div>
 
+                    {/* Bulk Set Target Helper Bar */}
+                    {discoveredAgents.length > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-blue-50/70 rounded-xl border border-blue-200/80 text-xs">
+                        <div className="flex items-center gap-1.5 text-blue-900 font-semibold text-[11px]">
+                          <Target className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Bulk Set Target for All Reps:</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2 py-1 shadow-2xs">
+                            <span className="text-[10px] font-bold text-gray-400 mr-1.5 uppercase">
+                              {formData.currency || 'AED'}
+                            </span>
+                            <input
+                              type="number"
+                              value={bulkTargetInput}
+                              onChange={(e) => setBulkTargetInput(Number(e.target.value))}
+                              className="w-24 text-xs font-bold text-gray-800 bg-transparent focus:outline-none text-right"
+                              step={5000}
+                              min={0}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleApplyBulkTarget}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs"
+                          >
+                            Apply to All
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Search filter for agents */}
                     {discoveredAgents.length > 4 && (
                       <div className="relative">
@@ -940,7 +993,7 @@ export default function SubAccountSettingsModal({
                         <span>Loading team members...</span>
                       </div>
                     ) : (
-                      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-50">
+                      <div className="max-h-72 overflow-y-auto space-y-2 pr-1 divide-y divide-gray-50">
                         {discoveredAgents
                           .filter(
                             (a) =>
@@ -951,29 +1004,35 @@ export default function SubAccountSettingsModal({
                           .map((agent) => (
                             <div
                               key={agent.ghlUserId}
-                              onClick={() => handleToggleAgent(agent.ghlUserId)}
-                              className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all border ${
+                              className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl transition-all border gap-2.5 ${
                                 agent.isActive
                                   ? 'bg-blue-50/40 border-blue-200/60 hover:bg-blue-50/70'
-                                  : 'bg-gray-50/60 border-transparent hover:bg-gray-100/70 opacity-60'
+                                  : 'bg-gray-50/60 border-gray-200/50 hover:bg-gray-100/70 opacity-60'
                               }`}
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
+                              {/* Left: Checkbox + Avatar + Name & Email */}
+                              <div
+                                onClick={() => handleToggleAgent(agent.ghlUserId)}
+                                className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1"
+                              >
                                 <input
                                   type="checkbox"
                                   checked={agent.isActive}
-                                  onChange={() => {}} // handled by row click
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 pointer-events-none"
+                                  onChange={() => handleToggleAgent(agent.ghlUserId)}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
                                 <img
-                                  src={agent.avatarUrl || `https://placehold.co/80x80/e2e8f0/1e293b?text=${agent.name.slice(0, 2)}`}
+                                  src={
+                                    agent.avatarUrl ||
+                                    `https://placehold.co/80x80/e2e8f0/1e293b?text=${agent.name.slice(0, 2)}`
+                                  }
                                   alt={agent.name}
-                                  className="w-7 h-7 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  className="w-8 h-8 rounded-lg object-cover border border-gray-200 shrink-0"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src = `https://placehold.co/80x80/e2e8f0/1e293b?text=${agent.name.slice(0, 2)}`;
                                   }}
                                 />
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <div className="text-xs font-bold text-gray-900 truncate">
                                     {agent.name}
                                   </div>
@@ -983,25 +1042,53 @@ export default function SubAccountSettingsModal({
                                 </div>
                               </div>
 
-                              <span
-                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 flex items-center gap-1 ${
-                                  agent.isActive
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-gray-200 text-gray-600'
-                                }`}
-                              >
-                                {agent.isActive ? (
-                                  <>
-                                    <Eye className="w-3 h-3 text-emerald-600" />
-                                    <span>Visible</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <EyeOff className="w-3 h-3 text-gray-400" />
-                                    <span>Hidden</span>
-                                  </>
-                                )}
-                              </span>
+                              {/* Right: Individual Target Revenue Input & Visibility Toggle */}
+                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                {/* Custom Target Input */}
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-2 py-1 shadow-2xs focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20"
+                                >
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase">
+                                    Target ({formData.currency || 'AED'}):
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={5000}
+                                    value={agent.targetRevenue ?? 50000}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) =>
+                                      handleUpdateAgentTarget(agent.ghlUserId, Number(e.target.value))
+                                    }
+                                    className="w-24 text-xs font-bold text-gray-800 text-right bg-transparent focus:outline-none"
+                                    title="Set individual monthly revenue target for this sales consultant"
+                                  />
+                                </div>
+
+                                {/* Visibility Toggle Badge */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleAgent(agent.ghlUserId)}
+                                  className={`px-2 py-1 text-[10px] font-bold rounded-lg shrink-0 flex items-center gap-1 transition-colors ${
+                                    agent.isActive
+                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                  }`}
+                                >
+                                  {agent.isActive ? (
+                                    <>
+                                      <Eye className="w-3 h-3 text-emerald-600" />
+                                      <span>Visible</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <EyeOff className="w-3 h-3 text-gray-400" />
+                                      <span>Hidden</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           ))}
                       </div>
