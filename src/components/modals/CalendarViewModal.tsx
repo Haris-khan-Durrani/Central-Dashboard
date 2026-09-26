@@ -57,6 +57,15 @@ interface CalendarViewModalProps {
 
 type CalendarViewMode = 'day' | 'week' | 'month' | 'agenda';
 
+// Formats a Date object or ISO string into a local 'YYYY-MM-DD' key (preserves local browser timezone)
+function toLocalDateKey(input: Date | string): string {
+  const d = typeof input === 'string' ? new Date(input) : input;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function CalendarViewModal({
   isOpen,
   onClose,
@@ -175,10 +184,10 @@ export default function CalendarViewModal({
     return days;
   }, [currentDate]);
 
-  const currentDayDateStr = currentDate.toISOString().slice(0, 10);
+  const currentDayDateStr = toLocalDateKey(currentDate);
   const currentDayAppts = useMemo(() => {
     return filteredAppointments
-      .filter((a) => a.startTime.slice(0, 10) === currentDayDateStr)
+      .filter((a) => toLocalDateKey(a.startTime) === currentDayDateStr)
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   }, [filteredAppointments, currentDayDateStr]);
 
@@ -251,8 +260,8 @@ export default function CalendarViewModal({
   // Group appointments for Agenda view
   const groupedAgenda = useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    const tomorrowStr = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const todayStr = toLocalDateKey(now);
+    const tomorrowStr = toLocalDateKey(new Date(now.getTime() + 24 * 60 * 60 * 1000));
 
     const groups: Record<string, CalendarAppointment[]> = {
       Today: [],
@@ -266,7 +275,7 @@ export default function CalendarViewModal({
 
     filteredAppointments.forEach((appt) => {
       const apptDate = new Date(appt.startTime);
-      const apptDateStr = appt.startTime.slice(0, 10);
+      const apptDateStr = toLocalDateKey(appt.startTime);
 
       if (apptDate < new Date(now.getTime() - 24 * 60 * 60 * 1000)) {
         groups.Past.push(appt);
@@ -287,8 +296,8 @@ export default function CalendarViewModal({
   // Appointments for selected date in month view
   const selectedDayAppointments = useMemo(() => {
     if (!selectedDateFilter) return [];
-    const dateStr = selectedDateFilter.toISOString().slice(0, 10);
-    return filteredAppointments.filter((a) => a.startTime.slice(0, 10) === dateStr);
+    const dateStr = toLocalDateKey(selectedDateFilter);
+    return filteredAppointments.filter((a) => toLocalDateKey(a.startTime) === dateStr);
   }, [filteredAppointments, selectedDateFilter]);
 
   if (!isOpen) return null;
@@ -665,10 +674,10 @@ export default function CalendarViewModal({
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
                 {weekDays.map((dayObj) => {
-                  const dateStr = dayObj.toISOString().slice(0, 10);
-                  const isToday = new Date().toISOString().slice(0, 10) === dateStr;
+                  const dateStr = toLocalDateKey(dayObj);
+                  const isToday = toLocalDateKey(new Date()) === dateStr;
                   const dayAppts = filteredAppointments
-                    .filter((a) => a.startTime.slice(0, 10) === dateStr)
+                    .filter((a) => toLocalDateKey(a.startTime) === dateStr)
                     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
                   const busyAgentNames = new Set(dayAppts.map((a) => a.agentName.toLowerCase()));
@@ -794,13 +803,13 @@ export default function CalendarViewModal({
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const dayNum = i + 1;
                     const dateObj = new Date(year, month, dayNum);
-                    const dateStr = dateObj.toISOString().slice(0, 10);
-                    const isToday = new Date().toISOString().slice(0, 10) === dateStr;
+                    const dateStr = toLocalDateKey(dateObj);
+                    const isToday = toLocalDateKey(new Date()) === dateStr;
                     const isSelected =
-                      selectedDateFilter && selectedDateFilter.toISOString().slice(0, 10) === dateStr;
+                      selectedDateFilter && toLocalDateKey(selectedDateFilter) === dateStr;
 
                     const dayAppts = filteredAppointments.filter(
-                      (a) => a.startTime.slice(0, 10) === dateStr
+                      (a) => toLocalDateKey(a.startTime) === dateStr
                     );
 
                     return (
