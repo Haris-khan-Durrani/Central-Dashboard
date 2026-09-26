@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
@@ -64,15 +64,42 @@ interface UpcomingMeetingsPanelProps {
   currency?: string;
 }
 
-function resolveMeetingMode(raw: string) {
+// Detects meeting mode from the raw type field AND from the appointment title text
+function resolveMeetingMode(raw: string, titleHint: string = '') {
   const t = (raw || '').toLowerCase().replace(/[_\-\s]/g, '');
+  const h = (titleHint || '').toLowerCase();
+
+  // Title-based overrides (GHL often stores wrong type; title is more accurate)
+  if (h.includes('physically') || h.includes('in person') || h.includes('in-person') ||
+      h.includes('at office') || h.includes('face to face') || h.includes('f2f') ||
+      h.includes('at the office') || h.includes('in office')) {
+    return { label: 'In-Person', icon: MapPin, color: 'bg-purple-50 text-purple-700 border-purple-200' };
+  }
+  if (h.includes('google meet') || h.includes('gmeet')) {
+    return { label: 'Google Meet', icon: Video, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (h.includes('teams') || h.includes('ms teams')) {
+    return { label: 'MS Teams', icon: Tv2, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+  }
+  if (h.includes('via zoom') || h.includes('on zoom') || h.includes('zoom call') || h.includes('zoom meeting')) {
+    return { label: 'Zoom', icon: Video, color: 'bg-blue-50 text-blue-700 border-blue-200' };
+  }
+  if (h.includes('phone') || h.includes('via call') || h.includes('on call') || h.includes('by phone') || h.includes('via phone')) {
+    return { label: 'Phone Call', icon: Phone, color: 'bg-amber-50 text-amber-700 border-amber-200' };
+  }
+
+  // Type-based detection
   if (t.includes('zoom')) return { label: 'Zoom', icon: Video, color: 'bg-blue-50 text-blue-700 border-blue-200' };
   if (t.includes('google') || t === 'meet' || t === 'googlemeet') return { label: 'Google Meet', icon: Video, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   if (t.includes('teams') || t.includes('microsoft')) return { label: 'MS Teams', icon: Tv2, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
   if (t.includes('phone') || t.includes('call')) return { label: 'Phone Call', icon: Phone, color: 'bg-amber-50 text-amber-700 border-amber-200' };
   if (t.includes('person') || t.includes('office') || t.includes('site') || t.includes('address') || t === 'inperson') return { label: 'In-Person', icon: MapPin, color: 'bg-purple-50 text-purple-700 border-purple-200' };
-  if (t.includes('webinar') || t.includes('web')) return { label: 'Webinar', icon: Globe, color: 'bg-teal-50 text-teal-700 border-teal-200' };
-  return { label: 'Direct Meeting', icon: Building2, color: 'bg-gray-100 text-gray-700 border-gray-200' };
+  if (t.includes('webinar')) return { label: 'Webinar', icon: Globe, color: 'bg-teal-50 text-teal-700 border-teal-200' };
+
+  // Fallback: scan title for any zoom mention
+  if (h.includes('zoom')) return { label: 'Zoom', icon: Video, color: 'bg-blue-50 text-blue-700 border-blue-200' };
+
+  return { label: 'Meeting', icon: Calendar, color: 'bg-gray-100 text-gray-600 border-gray-200' };
 }
 
 function ContactSheet({ meeting, onClose }: { meeting: UpcomingMeetingItem; onClose: () => void }) {
@@ -389,42 +416,67 @@ export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOp
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              <div className="flex flex-col gap-1.5">
                 {filteredMeetings.map((meeting) => {
                   const timeInfo = formatMeetingDate(meeting.startTime);
-                  const mode = resolveMeetingMode(meeting.meetingLocationType);
+                  // Detect meeting mode from both the type field AND the title text
+                  const mode = resolveMeetingMode(meeting.meetingLocationType, meeting.title);
                   const ModeIcon = mode.icon;
                   const isHappeningNow = timeInfo.countdown === 'Happening Now';
+                  // Use title as primary headline (GHL title has real meeting description)
+                  // ContactName as subtitle (if it's a generic fallback, hide it)
+                  const headline = meeting.title && meeting.title !== 'Client Appointment' && meeting.title !== 'Lead Appointment'
+                    ? meeting.title
+                    : meeting.contactName;
+                  const subline = meeting.title !== headline ? meeting.contactName : null;
+                  const hideSubline = !subline || subline === 'Lead Appointment' || subline === 'Client Appointment';
                   return (
-                    <div key={meeting.id} onClick={() => setSelectedMeeting(meeting)} className={`p-3.5 rounded-xl border bg-white hover:border-indigo-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 group relative overflow-hidden cursor-pointer ${isHappeningNow ? 'border-rose-300 shadow-rose-100 shadow-sm' : 'border-gray-200/90'}`}>
-                      {isHappeningNow && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-400 via-rose-500 to-orange-400" />}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 ${timeInfo.isToday ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-gray-100 text-gray-800'}`}>
-                            <Clock className="w-3 h-3 text-indigo-600" /><span>{timeInfo.dayLabel}, {timeInfo.timeFormatted}</span>
-                          </span>
-                          {timeInfo.countdown && <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${isHappeningNow ? 'bg-rose-100 text-rose-800 animate-pulse' : 'bg-emerald-100 text-emerald-800 animate-pulse'}`}>{timeInfo.countdown}</span>}
-                        </div>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${mode.color}`}>
-                          <ModeIcon className="w-2.5 h-2.5" /><span>{mode.label}</span>
-                        </span>
+                    <div
+                      key={meeting.id}
+                      onClick={() => setSelectedMeeting(meeting)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-white hover:bg-indigo-50/30 hover:border-indigo-300 transition-all group relative overflow-hidden cursor-pointer ${
+                        isHappeningNow ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200/90'
+                      }`}
+                    >
+                      {isHappeningNow && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-rose-500" />}
+
+                      {/* Time column */}
+                      <div className="shrink-0 text-center min-w-[72px]">
+                        <div className={`text-[10px] font-bold truncate ${timeInfo.isToday ? 'text-indigo-700' : 'text-gray-500'}`}>{timeInfo.dayLabel}</div>
+                        <div className="text-xs font-extrabold text-gray-900">{timeInfo.timeFormatted}</div>
+                        {timeInfo.countdown && (
+                          <div className={`text-[9px] font-bold px-1 rounded mt-0.5 inline-block ${
+                            isHappeningNow ? 'bg-rose-100 text-rose-700 animate-pulse' : 'bg-emerald-100 text-emerald-700'
+                          }`}>{timeInfo.countdown}</div>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <div className="font-extrabold text-sm text-gray-900 group-hover:text-indigo-600 transition-colors truncate">{meeting.contactName}</div>
-                        <div className="text-xs text-gray-600 font-medium truncate">{meeting.title}</div>
-                        {meeting.calendarName && <div className="text-[11px] text-gray-400 font-medium truncate flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400" /><span>{meeting.calendarName}</span></div>}
+
+                      {/* Divider */}
+                      <div className="h-8 w-px bg-gray-200 shrink-0" />
+
+                      {/* Meeting info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-xs text-gray-900 group-hover:text-indigo-700 transition-colors truncate">{headline}</div>
+                        {!hideSubline && <div className="text-[10px] text-gray-500 font-medium truncate">{subline}</div>}
+                        {meeting.calendarName && <div className="text-[9px] text-gray-400 truncate">📅 {meeting.calendarName}</div>}
                       </div>
-                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {meeting.agentAvatar ? (
-                            <img src={meeting.agentAvatar} alt={meeting.agentName} className="w-6 h-6 rounded-full object-cover border border-gray-200 shrink-0" />
-                          ) : (
-                            <div className="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">{meeting.agentName.charAt(0)}</div>
-                          )}
-                          <span className="font-semibold text-gray-700 truncate max-w-[110px]">{meeting.agentName}</span>
-                        </div>
-                        <span className="text-[10px] text-indigo-500 font-bold flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View contact <ChevronRight className="w-3 h-3" /></span>
+
+                      {/* Mode badge */}
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shrink-0 ${mode.color}`}>
+                        <ModeIcon className="w-2.5 h-2.5" />
+                        <span className="hidden sm:inline">{mode.label}</span>
+                      </span>
+
+                      {/* Agent avatar */}
+                      <div className="shrink-0">
+                        {meeting.agentAvatar ? (
+                          <img src={meeting.agentAvatar} alt={meeting.agentName} title={meeting.agentName} className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center border border-indigo-200" title={meeting.agentName}>{meeting.agentName.charAt(0)}</div>
+                        )}
                       </div>
+
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0" />
                     </div>
                   );
                 })}

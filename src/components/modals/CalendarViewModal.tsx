@@ -149,25 +149,39 @@ export default function CalendarViewModal({
     setSelectedDateFilter(today);
   };
 
-  const formatMeetingMode = (type: string) => {
+  const formatMeetingMode = (type: string, titleHint: string = '') => {
     const t = (type || '').toLowerCase().replace(/[_\-\s]/g, '');
-    if (t.includes('zoom')) {
-      return { label: 'Zoom', icon: Video, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    const h = (titleHint || '').toLowerCase();
+
+    // Title-based overrides (GHL stores 'zoom' even for in-person meetings)
+    if (h.includes('physically') || h.includes('in person') || h.includes('in-person') ||
+        h.includes('at office') || h.includes('face to face') || h.includes('in office')) {
+      return { label: 'In-Person', icon: MapPin, color: 'bg-purple-100 text-purple-700 border-purple-200' };
     }
-    if (t.includes('google') || t === 'meet' || t === 'googlemeet') {
+    if (h.includes('google meet') || h.includes('gmeet')) {
       return { label: 'Google Meet', icon: Video, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
     }
-    if (t.includes('teams') || t.includes('microsoft')) {
+    if (h.includes('teams') || h.includes('ms teams')) {
       return { label: 'MS Teams', icon: Video, color: 'bg-indigo-100 text-indigo-700 border-indigo-200' };
     }
-    if (t.includes('phone') || t.includes('call')) {
+    if (h.includes('via zoom') || h.includes('on zoom') || h.includes('zoom call')) {
+      return { label: 'Zoom', icon: Video, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    }
+    if (h.includes('phone') || h.includes('via call') || h.includes('on call') || h.includes('via phone')) {
       return { label: 'Phone Call', icon: Phone, color: 'bg-amber-100 text-amber-700 border-amber-200' };
     }
+
+    // Type-based detection
+    if (t.includes('zoom')) return { label: 'Zoom', icon: Video, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    if (t.includes('google') || t === 'meet' || t === 'googlemeet') return { label: 'Google Meet', icon: Video, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    if (t.includes('teams') || t.includes('microsoft')) return { label: 'MS Teams', icon: Video, color: 'bg-indigo-100 text-indigo-700 border-indigo-200' };
+    if (t.includes('phone') || t.includes('call')) return { label: 'Phone Call', icon: Phone, color: 'bg-amber-100 text-amber-700 border-amber-200' };
     if (t.includes('person') || t.includes('office') || t.includes('address') || t === 'inperson') {
       return { label: 'In-Person', icon: MapPin, color: 'bg-purple-100 text-purple-700 border-purple-200' };
     }
-    // GHL: 'custom', 'default', 'none' → Direct Meeting
-    return { label: 'Direct Meeting', icon: MapPin, color: 'bg-gray-100 text-gray-600 border-gray-200' };
+    // Fallback: scan title for zoom
+    if (h.includes('zoom')) return { label: 'Zoom', icon: Video, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    return { label: 'Meeting', icon: MapPin, color: 'bg-gray-100 text-gray-600 border-gray-200' };
   };
 
   const formatTime = (isoString: string) => {
@@ -431,7 +445,7 @@ export default function CalendarViewModal({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                       {list.map((appt) => {
-                        const mode = formatMeetingMode(appt.meetingLocationType);
+                        const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
                         const ModeIcon = mode.icon;
                         const isPast = new Date(appt.startTime) < new Date();
 
