@@ -1,5 +1,6 @@
 import prisma from '../db';
 import { fastCache } from '../cache';
+import { parseMeetingDetails } from '../meetingHelper';
 
 export interface KpiFilterOptions {
   locationId: string;
@@ -83,6 +84,8 @@ export interface CommandCenterData {
     meetingLocationType: string;
     meetingUrl: string | null;
     calendarName: string | null;
+    bookedBy?: string | null;
+    hostName?: string;
   }>;
   appointments: Array<{
     id: number;
@@ -99,6 +102,8 @@ export interface CommandCenterData {
     meetingLocationType: string;
     meetingUrl: string | null;
     calendarName: string | null;
+    bookedBy?: string | null;
+    hostName?: string;
   }>;
   pipelines: Array<{
     id: number;
@@ -379,6 +384,14 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
         status: true,
         meetingLocationType: true,
         meetingUrl: true,
+        contact: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+          },
+        },
       },
       orderBy: { startTime: 'asc' },
     }),
@@ -447,22 +460,31 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     .slice(0, 50)
     .map((a) => {
       const assignedUser = dbUsers.find((u) => u.ghlUserId === a.assignedTo);
+      const repName = assignedUser ? assignedUser.name : 'Unassigned';
+      const parsed = parseMeetingDetails(
+        a.title,
+        a.contactName || (a.contact ? `${a.contact.firstName || ''} ${a.contact.lastName || ''}`.trim() : null),
+        repName,
+        a.meetingLocationType || ''
+      );
       return {
         id: a.id,
-        title: a.title || 'Client Appointment',
+        title: parsed.displayTitle,
         contactId: a.contactId ?? null,
-        contactName: a.contactName || 'Lead Appointment',
-        contactPhone: a.contactPhone,
-        contactEmail: a.contactEmail,
+        contactName: parsed.clientName,
+        contactPhone: a.contactPhone || a.contact?.phone || null,
+        contactEmail: a.contactEmail || a.contact?.email || null,
         assignedTo: a.assignedTo,
-        agentName: assignedUser ? assignedUser.name : 'Unassigned',
+        agentName: parsed.hostName || repName,
         agentAvatar: assignedUser ? assignedUser.avatarUrl : null,
         startTime: a.startTime.toISOString(),
         endTime: a.endTime ? a.endTime.toISOString() : null,
         status: a.status,
-        meetingLocationType: a.meetingLocationType || 'custom',
+        meetingLocationType: parsed.modeType || a.meetingLocationType || 'custom',
         meetingUrl: a.meetingUrl,
         calendarName: a.calendarName,
+        bookedBy: parsed.bookedBy,
+        hostName: parsed.hostName,
       };
     });
 
@@ -691,22 +713,31 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
   // All appointments for calendar schedule view
   const allAppointments = dbAppointments.map((a) => {
     const assignedUser = dbUsers.find((u) => u.ghlUserId === a.assignedTo);
+    const repName = assignedUser ? assignedUser.name : 'Unassigned';
+    const parsed = parseMeetingDetails(
+      a.title,
+      a.contactName || (a.contact ? `${a.contact.firstName || ''} ${a.contact.lastName || ''}`.trim() : null),
+      repName,
+      a.meetingLocationType || ''
+    );
     return {
       id: a.id,
-      title: a.title || 'Client Appointment',
+      title: parsed.displayTitle,
       contactId: a.contactId ?? null,
-      contactName: a.contactName || 'Lead Appointment',
-      contactPhone: a.contactPhone,
-      contactEmail: a.contactEmail,
+      contactName: parsed.clientName,
+      contactPhone: a.contactPhone || a.contact?.phone || null,
+      contactEmail: a.contactEmail || a.contact?.email || null,
       assignedTo: a.assignedTo,
-      agentName: assignedUser ? assignedUser.name : 'Unassigned',
+      agentName: parsed.hostName || repName,
       agentAvatar: assignedUser ? assignedUser.avatarUrl : null,
       startTime: a.startTime.toISOString(),
       endTime: a.endTime ? a.endTime.toISOString() : null,
       status: a.status,
-      meetingLocationType: a.meetingLocationType || 'custom',
+      meetingLocationType: parsed.modeType || a.meetingLocationType || 'custom',
       meetingUrl: a.meetingUrl,
       calendarName: a.calendarName,
+      bookedBy: parsed.bookedBy,
+      hostName: parsed.hostName,
     };
   });
 

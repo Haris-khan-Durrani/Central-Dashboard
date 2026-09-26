@@ -21,6 +21,7 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
+import { parseMeetingDetails } from '@/lib/meetingHelper';
 
 export interface CalendarAppointment {
   id: number;
@@ -158,7 +159,7 @@ export default function CalendarViewModal({
         h.includes('at office') || h.includes('face to face') || h.includes('in office')) {
       return { label: 'In-Person', icon: MapPin, color: 'bg-purple-100 text-purple-700 border-purple-200' };
     }
-    if (h.includes('google meet') || h.includes('gmeet')) {
+    if (h.includes('via gm') || h.includes('google meet') || h.includes('gmeet') || /\bgm\b/.test(h)) {
       return { label: 'Google Meet', icon: Video, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
     }
     if (h.includes('teams') || h.includes('ms teams')) {
@@ -445,6 +446,7 @@ export default function CalendarViewModal({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                       {list.map((appt) => {
+                        const parsed = parseMeetingDetails(appt.title, appt.contactName, appt.agentName, appt.meetingLocationType);
                         const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
                         const ModeIcon = mode.icon;
                         const isPast = new Date(appt.startTime) < new Date();
@@ -499,10 +501,10 @@ export default function CalendarViewModal({
                               {/* Lead Info */}
                               <div>
                                 <div className="text-sm font-extrabold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                                  {appt.contactName}
+                                  {parsed.clientName}
                                 </div>
                                 <div className="text-xs text-gray-500 font-medium truncate">
-                                  {appt.title}
+                                  {parsed.displayTitle}
                                 </div>
                                 {appt.calendarName && (
                                   <div className="text-[10px] text-gray-400 mt-0.5 truncate">
@@ -527,9 +529,16 @@ export default function CalendarViewModal({
                                     (e.target as HTMLImageElement).src = `https://placehold.co/80x80/e2e8f0/1e293b?text=${appt.agentName.slice(0, 2)}`;
                                   }}
                                 />
-                                <span className="text-[11px] font-bold text-gray-700 truncate">
-                                  {appt.agentName}
-                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-[11px] font-bold text-gray-700 truncate">
+                                    {parsed.hostName}
+                                  </div>
+                                  {parsed.bookedBy && (
+                                    <div className="text-[9px] font-bold text-amber-700">
+                                      by {parsed.bookedBy}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Meeting Button */}
@@ -659,15 +668,18 @@ export default function CalendarViewModal({
 
                         {/* Mini indicators */}
                         <div className="space-y-0.5 mt-1 overflow-hidden">
-                          {dayAppts.slice(0, 2).map((a) => (
-                            <div
-                              key={a.id}
-                              className="text-[9px] font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded truncate"
-                              title={`${a.contactName} (${formatTime(a.startTime)})`}
-                            >
-                              {formatTime(a.startTime)} {a.contactName}
-                            </div>
-                          ))}
+                          {dayAppts.slice(0, 2).map((a) => {
+                            const p = parseMeetingDetails(a.title, a.contactName, a.agentName, a.meetingLocationType);
+                            return (
+                              <div
+                                key={a.id}
+                                className="text-[9px] font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded truncate"
+                                title={`${p.clientName} (${formatTime(a.startTime)})`}
+                              >
+                                {formatTime(a.startTime)} {p.clientName}
+                              </div>
+                            );
+                          })}
                           {dayAppts.length > 2 && (
                             <div className="text-[8px] font-bold text-blue-600 pl-1">
                               +{dayAppts.length - 2} more
@@ -702,7 +714,8 @@ export default function CalendarViewModal({
 
                 <div className="flex-1 overflow-y-auto pt-3 space-y-3">
                   {selectedDayAppointments.map((appt) => {
-                    const mode = formatMeetingMode(appt.meetingLocationType);
+                    const parsed = parseMeetingDetails(appt.title, appt.contactName, appt.agentName, appt.meetingLocationType);
+                    const mode = formatMeetingMode(appt.meetingLocationType, appt.title);
                     const ModeIcon = mode.icon;
 
                     return (
@@ -724,10 +737,16 @@ export default function CalendarViewModal({
 
                         <div>
                           <div className="text-xs font-extrabold text-gray-900 truncate">
-                            {appt.contactName}
+                            {parsed.clientName}
                           </div>
                           <div className="text-[11px] text-gray-500 truncate">
-                            {appt.title}
+                            {parsed.displayTitle}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">
+                            With: <span className="font-semibold text-gray-600">{parsed.hostName}</span>
+                            {parsed.bookedBy && (
+                              <span className="ml-1.5 text-amber-700 font-bold">· By: {parsed.bookedBy}</span>
+                            )}
                           </div>
                         </div>
 

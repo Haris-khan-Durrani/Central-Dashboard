@@ -20,6 +20,7 @@ import {
   Building2,
   Tv2,
 } from 'lucide-react';
+import { parseMeetingDetails } from '@/lib/meetingHelper';
 
 export interface UpcomingMeetingItem {
   id: number;
@@ -37,6 +38,8 @@ export interface UpcomingMeetingItem {
   meetingLocationType: string;
   meetingUrl?: string | null;
   calendarName?: string | null;
+  bookedBy?: string | null;
+  hostName?: string;
 }
 
 export interface AgentAvailabilityItem {
@@ -75,7 +78,7 @@ function resolveMeetingMode(raw: string, titleHint: string = '') {
       h.includes('at the office') || h.includes('in office')) {
     return { label: 'In-Person', icon: MapPin, color: 'bg-purple-50 text-purple-700 border-purple-200' };
   }
-  if (h.includes('google meet') || h.includes('gmeet')) {
+  if (h.includes('via gm') || h.includes('google meet') || h.includes('gmeet') || /\bgm\b/.test(h)) {
     return { label: 'Google Meet', icon: Video, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   }
   if (h.includes('teams') || h.includes('ms teams')) {
@@ -103,102 +106,168 @@ function resolveMeetingMode(raw: string, titleHint: string = '') {
 }
 
 function ContactSheet({ meeting, onClose }: { meeting: UpcomingMeetingItem; onClose: () => void }) {
-  const mode = resolveMeetingMode(meeting.meetingLocationType);
+  const parsed = parseMeetingDetails(meeting.title, meeting.contactName, meeting.agentName, meeting.meetingLocationType);
+  const mode = resolveMeetingMode(meeting.meetingLocationType, meeting.title);
   const ModeIcon = mode.icon;
 
-  const formatTime = (iso: string) => {
+  const fmtDate = (iso: string) => {
     try {
       const d = new Date(iso);
       const now = new Date();
       const isToday = d.toDateString() === now.toDateString();
-      const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
       const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-      return `${dateStr} at ${timeStr}`;
-    } catch { return iso; }
+      return { dateStr, timeStr };
+    } catch { return { dateStr: '', timeStr: iso }; }
   };
 
+  const { dateStr, timeStr } = fmtDate(meeting.startTime);
+  const endTimeStr = meeting.endTime
+    ? new Date(meeting.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+    : null;
+
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-4 duration-300" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg font-extrabold shadow-lg shrink-0">
-              {meeting.contactName.charAt(0).toUpperCase()}
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] overflow-hidden border border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 px-5 py-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-white/20 rounded-full inline-block mb-1 text-indigo-100">
+                CRM Booking Details
+              </span>
+              <h3 className="font-extrabold text-sm leading-snug text-white line-clamp-2">
+                {parsed.displayTitle}
+              </h3>
             </div>
-            <div>
-              <div className="font-extrabold text-gray-900 text-base leading-tight">{meeting.contactName}</div>
-              <div className="text-xs text-gray-500 mt-0.5 font-medium">{meeting.title}</div>
-            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
+
+          {/* Time & Mode Bar */}
+          <div className="mt-3 flex items-center justify-between gap-2 pt-2.5 border-t border-white/15">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-indigo-200 shrink-0" />
+              <span className="text-xs font-bold text-white">{dateStr}</span>
+              <span className="text-indigo-200 text-xs font-medium ml-1">
+                {timeStr} {endTimeStr ? `– ${endTimeStr}` : ''}
+              </span>
             </div>
-            <div>
-              <div className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Appointment</div>
-              <div className="text-xs font-bold text-indigo-900">{formatTime(meeting.startTime)}</div>
-              {meeting.endTime && <div className="text-[10px] text-indigo-600 font-medium">Until {new Date(meeting.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
-            </div>
-            <span className={`ml-auto px-2.5 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1 ${mode.color}`}>
-              <ModeIcon className="w-3 h-3" />{mode.label}
+            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-gray-800 shadow-sm shrink-0">
+              <ModeIcon className="w-3 h-3 text-indigo-600" />
+              <span>{mode.label}</span>
             </span>
           </div>
-          <div className="space-y-2">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Contact Info</div>
-            {meeting.contactPhone && (
-              <a href={`tel:${meeting.contactPhone}`} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors group">
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Phone className="w-3.5 h-3.5" /></div>
-                <div className="min-w-0">
-                  <div className="text-[10px] text-gray-400 font-medium">Phone</div>
-                  <div className="text-xs font-bold text-gray-800 group-hover:text-emerald-700">{meeting.contactPhone}</div>
-                </div>
-                <ExternalLink className="w-3.5 h-3.5 text-gray-300 group-hover:text-emerald-600 ml-auto" />
-              </a>
-            )}
-            {meeting.contactEmail && (
-              <a href={`mailto:${meeting.contactEmail}`} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors group">
-                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><Mail className="w-3.5 h-3.5" /></div>
-                <div className="min-w-0">
-                  <div className="text-[10px] text-gray-400 font-medium">Email</div>
-                  <div className="text-xs font-bold text-gray-800 group-hover:text-blue-700 truncate">{meeting.contactEmail}</div>
-                </div>
-                <ExternalLink className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-600 ml-auto" />
-              </a>
-            )}
-            {!meeting.contactPhone && !meeting.contactEmail && (
-              <div className="py-2 px-3 rounded-xl bg-gray-50 text-xs text-gray-400 italic">No contact details available</div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assigned Sales Rep</div>
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-              {meeting.agentAvatar ? (
-                <img src={meeting.agentAvatar} alt={meeting.agentName} className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0" />
+        </div>
+
+        {/* Body: Key Parties with 100% clarity */}
+        <div className="p-5 space-y-3.5">
+          {/* 1. CLIENT (Person Being Met) */}
+          <div className="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-100">
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 mb-1.5 flex items-center gap-1.5">
+              <User className="w-3 h-3" />
+              <span>Client / Person Being Met</span>
+            </div>
+            <div className="text-sm font-extrabold text-gray-900">{parsed.clientName}</div>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {meeting.contactPhone ? (
+                <a
+                  href={`tel:${meeting.contactPhone}`}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-xs"
+                >
+                  <Phone className="w-2.5 h-2.5" />
+                  {meeting.contactPhone}
+                </a>
               ) : (
-                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0">{meeting.agentName.charAt(0)}</div>
+                <span className="text-[10px] text-gray-400 italic">No phone attached</span>
               )}
-              <div>
-                <div className="text-xs font-bold text-gray-800">{meeting.agentName}</div>
-                {meeting.calendarName && <div className="text-[10px] text-gray-400 font-medium">📅 {meeting.calendarName}</div>}
+              {meeting.contactEmail ? (
+                <a
+                  href={`mailto:${meeting.contactEmail}`}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-800 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs truncate max-w-[200px]"
+                >
+                  <Mail className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{meeting.contactEmail}</span>
+                </a>
+              ) : (
+                <span className="text-[10px] text-gray-400 italic">No email attached</span>
+              )}
+            </div>
+          </div>
+
+          {/* 2. MEETING WITH & BOOKED BY (Two columns) */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Host / Rep to meet */}
+            <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1">
+                <Users className="w-3 h-3 text-gray-400" />
+                <span>Meeting With</span>
+              </div>
+              <div className="text-xs font-extrabold text-gray-900 truncate">{parsed.hostName}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">Assigned Host / Rep</div>
+            </div>
+
+            {/* Booked By */}
+            <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 mb-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                <span>Booked By</span>
+              </div>
+              <div className="text-xs font-extrabold text-amber-950 truncate">
+                {parsed.bookedBy || meeting.agentName || 'CRM'}
+              </div>
+              <div className="text-[10px] text-amber-700 mt-0.5">
+                {parsed.bookedBy ? 'Appointment Setter Tag' : 'Calendar Owner'}
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${['cancelled','canceled','no-show','noshow'].includes(meeting.status.toLowerCase()) ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-              {meeting.status}
+
+          {/* 3. CALENDAR & STATUS */}
+          <div className="p-3 rounded-xl bg-gray-50/70 border border-gray-100 flex items-center justify-between text-xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold text-gray-400 block">Calendar:</span>
+              <span className="font-bold text-gray-800 truncate block">
+                {meeting.calendarName || 'Standard Sales Calendar'}
+              </span>
+            </div>
+            <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full border shrink-0 ${
+              ['cancelled','canceled','no-show','noshow'].includes(meeting.status.toLowerCase())
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}>
+              {meeting.status.toUpperCase()}
             </span>
-            {meeting.meetingUrl && (
-              <a href={meeting.meetingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-sm shadow-indigo-600/20">
-                <ExternalLink className="w-3.5 h-3.5" />
-                Join Meeting
-              </a>
-            )}
           </div>
+
+          {/* Join Meeting Button */}
+          {meeting.meetingUrl ? (
+            <a
+              href={meeting.meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-95"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Join {mode.label} Room
+            </a>
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors"
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -230,7 +299,8 @@ function TodaysMeetingTicker({ meetings }: { meetings: UpcomingMeetingItem[] }) 
   if (todayMeetings.length === 0) return null;
 
   const current = todayMeetings[idx % todayMeetings.length];
-  const mode = resolveMeetingMode(current.meetingLocationType);
+  const parsed = parseMeetingDetails(current.title, current.contactName, current.agentName, current.meetingLocationType);
+  const mode = resolveMeetingMode(current.meetingLocationType, current.title);
   const ModeIcon = mode.icon;
   const meetingTime = new Date(current.startTime);
   const diffMins = Math.round((meetingTime.getTime() - now.getTime()) / 60000);
@@ -250,12 +320,17 @@ function TodaysMeetingTicker({ meetings }: { meetings: UpcomingMeetingItem[] }) 
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className={`flex items-center gap-2 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'}`}>
           <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold shrink-0 ${badgeClass}`}>{badgeText}</span>
-          <span className="text-xs font-bold text-gray-900 truncate">{current.contactName}</span>
-          <span className="text-[10px] text-gray-400 font-medium truncate hidden sm:inline">— {current.title}</span>
+          <span className="text-xs font-bold text-gray-900 truncate">{parsed.clientName}</span>
+          <span className="text-[10px] text-gray-400 font-medium truncate hidden sm:inline">— {parsed.displayTitle}</span>
           <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${mode.color}`}>
             <ModeIcon className="w-2.5 h-2.5" />{mode.label}
           </span>
-          <span className="text-[10px] text-gray-500 font-medium shrink-0 hidden md:inline">w/ {current.agentName}</span>
+          <span className="text-[10px] text-gray-500 font-medium shrink-0 hidden md:inline">w/ {parsed.hostName}</span>
+          {parsed.bookedBy && (
+            <span className="text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1 rounded shrink-0 hidden lg:inline">
+              by {parsed.bookedBy}
+            </span>
+          )}
         </div>
       </div>
       {todayMeetings.length > 1 && (
@@ -416,67 +491,82 @@ export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOp
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {filteredMeetings.map((meeting) => {
                   const timeInfo = formatMeetingDate(meeting.startTime);
-                  // Detect meeting mode from both the type field AND the title text
+                  const parsed = parseMeetingDetails(
+                    meeting.title,
+                    meeting.contactName,
+                    meeting.agentName,
+                    meeting.meetingLocationType
+                  );
                   const mode = resolveMeetingMode(meeting.meetingLocationType, meeting.title);
                   const ModeIcon = mode.icon;
                   const isHappeningNow = timeInfo.countdown === 'Happening Now';
-                  // Use title as primary headline (GHL title has real meeting description)
-                  // ContactName as subtitle (if it's a generic fallback, hide it)
-                  const headline = meeting.title && meeting.title !== 'Client Appointment' && meeting.title !== 'Lead Appointment'
-                    ? meeting.title
-                    : meeting.contactName;
-                  const subline = meeting.title !== headline ? meeting.contactName : null;
-                  const hideSubline = !subline || subline === 'Lead Appointment' || subline === 'Client Appointment';
+
                   return (
                     <div
                       key={meeting.id}
                       onClick={() => setSelectedMeeting(meeting)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-white hover:bg-indigo-50/30 hover:border-indigo-300 transition-all group relative overflow-hidden cursor-pointer ${
-                        isHappeningNow ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200/90'
+                      className={`group relative flex flex-col justify-between p-2.5 rounded-xl border bg-white hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer overflow-hidden ${
+                        isHappeningNow ? 'border-rose-300 ring-1 ring-rose-200 shadow-sm' : 'border-gray-200'
                       }`}
                     >
-                      {isHappeningNow && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-rose-500" />}
-
-                      {/* Time column */}
-                      <div className="shrink-0 text-center min-w-[72px]">
-                        <div className={`text-[10px] font-bold truncate ${timeInfo.isToday ? 'text-indigo-700' : 'text-gray-500'}`}>{timeInfo.dayLabel}</div>
-                        <div className="text-xs font-extrabold text-gray-900">{timeInfo.timeFormatted}</div>
-                        {timeInfo.countdown && (
-                          <div className={`text-[9px] font-bold px-1 rounded mt-0.5 inline-block ${
-                            isHappeningNow ? 'bg-rose-100 text-rose-700 animate-pulse' : 'bg-emerald-100 text-emerald-700'
-                          }`}>{timeInfo.countdown}</div>
-                        )}
+                      {/* Row 1: Time + Mode badge */}
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <div className="flex items-center gap-1.5 font-extrabold text-gray-900 min-w-0">
+                          <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span className="truncate">{timeInfo.timeFormatted}</span>
+                          <span className={`text-[10px] font-semibold shrink-0 ${timeInfo.isToday ? 'text-indigo-600' : 'text-gray-400'}`}>
+                            {timeInfo.dayLabel}
+                          </span>
+                          {timeInfo.countdown && (
+                            <span className={`text-[9px] font-bold px-1 rounded shrink-0 ${
+                              isHappeningNow ? 'bg-rose-100 text-rose-700 animate-pulse' : 'bg-emerald-50 text-emerald-700'
+                            }`}>
+                              {timeInfo.countdown}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${mode.color}`}>
+                          <ModeIcon className="w-2.5 h-2.5" />
+                          <span>{mode.label}</span>
+                        </span>
                       </div>
 
-                      {/* Divider */}
-                      <div className="h-8 w-px bg-gray-200 shrink-0" />
-
-                      {/* Meeting info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-xs text-gray-900 group-hover:text-indigo-700 transition-colors truncate">{headline}</div>
-                        {!hideSubline && <div className="text-[10px] text-gray-500 font-medium truncate">{subline}</div>}
-                        {meeting.calendarName && <div className="text-[9px] text-gray-400 truncate">📅 {meeting.calendarName}</div>}
+                      {/* Row 2: Client Name (Bold, High Visibility) */}
+                      <div className="my-1.5 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-700 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-indigo-100">
+                            {parsed.clientName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="font-extrabold text-xs text-gray-900 truncate tracking-tight group-hover:text-indigo-600 transition-colors" title={parsed.clientName}>
+                            {parsed.clientName}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Mode badge */}
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shrink-0 ${mode.color}`}>
-                        <ModeIcon className="w-2.5 h-2.5" />
-                        <span className="hidden sm:inline">{mode.label}</span>
-                      </span>
-
-                      {/* Agent avatar */}
-                      <div className="shrink-0">
-                        {meeting.agentAvatar ? (
-                          <img src={meeting.agentAvatar} alt={meeting.agentName} title={meeting.agentName} className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+                      {/* Row 3: With [Host] & By [Booker] */}
+                      <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-gray-100 gap-1">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-gray-400 text-[9px] font-medium shrink-0">With:</span>
+                          <span className="font-bold text-gray-700 truncate" title={parsed.hostName}>
+                            {parsed.hostName}
+                          </span>
+                        </div>
+                        {parsed.bookedBy ? (
+                          <span
+                            className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-extrabold shrink-0"
+                            title={`Booked by ${parsed.bookedBy}`}
+                          >
+                            By {parsed.bookedBy}
+                          </span>
                         ) : (
-                          <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center border border-indigo-200" title={meeting.agentName}>{meeting.agentName.charAt(0)}</div>
+                          <span className="text-[9px] text-gray-400 truncate max-w-[80px]" title={meeting.agentName}>
+                            {meeting.agentName}
+                          </span>
                         )}
                       </div>
-
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0" />
                     </div>
                   );
                 })}
@@ -505,9 +595,14 @@ export default function UpcomingMeetingsPanel({ meetings = [], agents = [], onOp
                 </div>
                 <div className="p-2 rounded-lg bg-gray-50 text-[11px] border border-gray-100 space-y-0.5">
                   <div className="text-gray-500 font-medium flex items-center gap-1"><Clock className="w-3 h-3 text-gray-400" /><span>Next:</span></div>
-                  {rep.nextMeeting ? (
-                    <div className="font-bold text-gray-800 truncate">{formatMeetingDate(rep.nextMeeting.startTime).dayLabel} at {formatMeetingDate(rep.nextMeeting.startTime).timeFormatted} ({rep.nextMeeting.contactName})</div>
-                  ) : (
+                  {rep.nextMeeting ? (() => {
+                    const np = parseMeetingDetails(rep.nextMeeting.title, rep.nextMeeting.contactName, rep.name, rep.nextMeeting.meetingLocationType);
+                    return (
+                      <div className="font-bold text-gray-800 truncate">
+                        {formatMeetingDate(rep.nextMeeting.startTime).dayLabel} at {formatMeetingDate(rep.nextMeeting.startTime).timeFormatted} ({np.clientName})
+                      </div>
+                    );
+                  })() : (
                     <div className="font-medium text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /><span>Available for new bookings</span></div>
                   )}
                 </div>
