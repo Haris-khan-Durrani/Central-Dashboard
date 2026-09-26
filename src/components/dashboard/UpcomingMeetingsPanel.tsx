@@ -354,16 +354,34 @@ export default function UpcomingMeetingsPanel({
       {viewTab === 'meetings' && (
         <>
           {filteredMeetings.length === 0 ? (
-            <div className="py-8 px-4 rounded-xl border border-dashed border-gray-200 text-center space-y-2 bg-gray-50/50">
-              <Calendar className="w-8 h-8 text-gray-300 mx-auto" />
-              <div className="text-xs font-bold text-gray-700">No scheduled meetings found</div>
-              <p className="text-[11px] text-gray-500 max-w-sm mx-auto">
-                No client appointments match the current filter ({filterPeriod === 'all' ? 'upcoming' : filterPeriod}). When leads book appointments via GoHighLevel calendars, they will stream live here.
-              </p>
+            <div className="py-7 px-5 rounded-2xl border border-dashed border-gray-200 text-center space-y-3 bg-gray-50/60">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-gray-800">No scheduled meetings recorded yet</div>
+                <p className="text-[11px] text-gray-500 max-w-md mx-auto mt-1">
+                  {filterPeriod !== 'all'
+                    ? `No client appointments found for "${filterPeriod}".`
+                    : 'When clients book calls or meetings through GoHighLevel calendars, they will stream live to this hub.'}
+                </p>
+              </div>
+
+              {/* Permission & Setup helper notice */}
+              <div className="max-w-md mx-auto bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 text-left space-y-1">
+                <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                  <span>💡</span>
+                  <span>How to enable Live Calendar Sync in GoHighLevel:</span>
+                </div>
+                <p className="text-[10px] text-amber-800 leading-relaxed">
+                  If your team uses HighLevel calendars, ensure your <strong>Private Integration Token</strong> has the <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">calendars.readonly</code> and <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">calendars/events.readonly</code> permissions enabled in GHL Settings → Developers.
+                </p>
+              </div>
+
               {filterPeriod !== 'all' && (
                 <button
                   onClick={() => setFilterPeriod('all')}
-                  className="px-3 py-1 bg-white border border-gray-200 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-50 transition-colors shadow-2xs"
+                  className="px-3.5 py-1.5 bg-white border border-gray-200 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-colors shadow-2xs"
                 >
                   View All Upcoming Meetings
                 </button>

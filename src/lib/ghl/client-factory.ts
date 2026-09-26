@@ -130,8 +130,12 @@ export class GhlClient {
     try {
       const res = await this.request<any>(`/calendars/?locationId=${this.locationId}`);
       return res.calendars || [];
-    } catch (err) {
-      console.warn(`Could not fetch calendars for location ${this.locationId}:`, err);
+    } catch (err: any) {
+      if (err?.message?.includes('scope') || err?.message?.includes('401')) {
+        console.info(`[GHL Info] Calendars scope not granted for location ${this.locationId} - calendar sync skipped.`);
+      } else {
+        console.warn(`Could not fetch calendars for location ${this.locationId}:`, err?.message || err);
+      }
       return [];
     }
   }
@@ -163,8 +167,12 @@ export class GhlClient {
       const end = endTime || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       const res = await this.request<any>(`/calendars/events?locationId=${this.locationId}&startTime=${start}&endTime=${end}`);
       return res.events || res.appointments || [];
-    } catch (err) {
-      console.warn(`Could not fetch calendar events for location ${this.locationId}:`, err);
+    } catch (err: any) {
+      if (err?.message?.includes('scope') || err?.message?.includes('401')) {
+        console.info(`[GHL Info] Calendars events scope not granted for location ${this.locationId} - appointments sync skipped.`);
+      } else {
+        console.warn(`Could not fetch calendar events for location ${this.locationId}:`, err?.message || err);
+      }
       return [];
     }
   }

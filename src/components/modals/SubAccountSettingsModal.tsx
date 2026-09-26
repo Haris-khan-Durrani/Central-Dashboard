@@ -770,22 +770,32 @@ export default function SubAccountSettingsModal({
                     </div>
 
                     {trackAllCalendars ? (
-                      <div className="py-2.5 px-3 bg-blue-50/50 rounded-xl border border-blue-100/60 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                          <span className="text-xs text-blue-800 font-medium">
-                            Tracking all active & future calendars in this sub-account ({discoveredCalendars.length} discovered).
-                          </span>
+                      <div className="space-y-2">
+                        <div className="py-2.5 px-3 bg-blue-50/50 rounded-xl border border-blue-100/60 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                            <span className="text-xs text-blue-800 font-medium">
+                              Tracking all active & future calendars in this sub-account ({discoveredCalendars.length} discovered).
+                            </span>
+                          </div>
+                          {discoveredCalendars.length === 0 && (
+                            <button
+                              type="button"
+                              onClick={handleTestConnection}
+                              disabled={isTesting}
+                              className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline"
+                            >
+                              Discover Calendars
+                            </button>
+                          )}
                         </div>
                         {discoveredCalendars.length === 0 && (
-                          <button
-                            type="button"
-                            onClick={handleTestConnection}
-                            disabled={isTesting}
-                            className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline"
-                          >
-                            Discover Calendars
-                          </button>
+                          <div className="p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+                            <span className="text-sm shrink-0">💡</span>
+                            <div>
+                              <span className="font-bold">GHL Permission Tip:</span> To enable automatic calendar discovery and live bookings, make sure your HighLevel Private Integration Token has the <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-amber-900">calendars.readonly</code> scope checked.
+                            </div>
+                          </div>
                         )}
                       </div>
                     ) : (
