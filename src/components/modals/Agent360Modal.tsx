@@ -26,6 +26,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { AgentData } from '../dashboard/AgentCardsGrid';
+import { CountryFlag, getCountryCode } from '../dashboard/NationalityMatrix';
 
 interface Agent360ModalProps {
   agent: AgentData | null;
@@ -667,14 +668,20 @@ export default function Agent360Modal({
                 ? segregation.items
                     .slice(0, 8)
                     .map(
-                      (item: any) => `
+                      (item: any) => {
+                        const code = getCountryCode(item.value || '');
+                        const flagHtml = code
+                          ? `<img src="https://flagcdn.com/20x15/${code}.png" style="width: 13px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 4px; display: inline-block;" />`
+                          : '';
+                        return `
               <tr>
-                <td><strong>${item.value || 'Unspecified'}</strong></td>
+                <td>${flagHtml}<strong>${item.value || 'Unspecified'}</strong></td>
                 <td style="text-align: center;">${item.leads} <span style="color: #64748b; font-size: 8.5px;">(${item.percentage}%)</span></td>
                 <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
                 <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
               </tr>
-            `
+            `;
+                      }
                     )
                     .join('')
                 : `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 10px;">No categorization data available.</td></tr>`
@@ -781,15 +788,21 @@ export default function Agent360Modal({
       <tbody>
         ${wonDeals
           .map(
-            (d: any) => `
+            (d: any) => {
+              const code = getCountryCode(d.customFieldValue || d.nationality || '');
+              const flagHtml = code
+                ? `<img src="https://flagcdn.com/20x15/${code}.png" style="width: 13px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 4px; display: inline-block;" />`
+                : '';
+              return `
           <tr>
             <td><strong>${d.name || 'Won Deal'}</strong> <span style="color: #64748b; font-size: 8.5px;">(${d.contactName || 'Direct'})</span></td>
-            <td><span style="font-weight: 700; color: #4338ca;">${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
+            <td><span style="font-weight: 700; color: #4338ca;">${flagHtml}${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
             <td>${d.stageName || 'Won'}</td>
             <td style="text-align: right; font-weight: 800; color: #15803d;">${formatCurrency(d.monetaryValue || 0)}</td>
             <td style="text-align: right; color: #475569;">${(d.wonAt || d.createdAt || '').slice(0, 10)}</td>
           </tr>
-        `
+        `;
+            }
           )
           .join('')}
       </tbody>
@@ -1269,14 +1282,17 @@ export default function Agent360Modal({
                           }`}
                         >
                           <div className="flex justify-between items-start gap-1.5">
-                            <span
-                              className={`text-xs font-extrabold truncate max-w-[140px] ${
-                                isSelected ? 'text-white' : 'text-gray-900'
-                              }`}
-                              title={item.value}
-                            >
-                              {item.value}
-                            </span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <CountryFlag nationality={item.value} className="w-4 h-3" />
+                              <span
+                                className={`text-xs font-extrabold truncate max-w-[140px] ${
+                                  isSelected ? 'text-white' : 'text-gray-900'
+                                }`}
+                                title={item.value}
+                              >
+                                {item.value}
+                              </span>
+                            </div>
                             <span
                               className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
                                 isSelected
@@ -1542,9 +1558,9 @@ export default function Agent360Modal({
                               )}
                             </td>
                             <td className="py-3 px-3.5">
-                              <span className="inline-flex items-center gap-1 font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-md text-[11px] truncate max-w-[150px]" title={d.customFieldValue || d.nationality}>
-                                <Globe className="w-3 h-3 text-indigo-500 shrink-0" />
-                                {d.customFieldValue || d.nationality || 'Unspecified'}
+                              <span className="inline-flex items-center gap-1.5 font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-md text-[11px] truncate max-w-[150px]" title={d.customFieldValue || d.nationality}>
+                                <CountryFlag nationality={d.customFieldValue || d.nationality || ''} className="w-3.5 h-2.5" />
+                                <span className="truncate">{d.customFieldValue || d.nationality || 'Unspecified'}</span>
                               </span>
                             </td>
                             <td className="py-3 px-3.5 text-gray-600 truncate max-w-[140px]">
