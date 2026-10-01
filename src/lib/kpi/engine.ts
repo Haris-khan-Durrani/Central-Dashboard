@@ -777,10 +777,36 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 /**
  * Smart inference of nationality / country from international phone dialing codes
  */
+export function extractPhoneCandidates(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const results: string[] = [];
+  // Match sequences that resemble phone numbers (with spaces, plus, hyphens, brackets, dots)
+  const matches = text.match(/(\+?\s*[0-9][0-9\s\-().]{5,24}[0-9])/g) || [];
+  for (const m of matches) {
+    const cleaned = m.replace(/[^0-9+]/g, '');
+    if (cleaned.length >= 7) {
+      results.push(cleaned);
+    }
+  }
+  return results;
+}
+
+/**
+ * Smart inference of nationality / country from international phone dialing codes
+ */
 export function inferCountryFromPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const cleaned = phone.replace(/[^0-9+]/g, '');
   if (!cleaned) return null;
+
+  // UAE local mobile numbers: 050, 052, 054, 055, 056, 058 (10 digits starting with 05)
+  if (cleaned.startsWith('05') && cleaned.length === 10) {
+    return 'United Arab Emirates';
+  }
+  // UAE local landlines: 02 (Abu Dhabi), 04 (Dubai), 06 (Sharjah/Ajman), 07 (RAK), 09 (Fujairah)
+  if (/^0[24679][0-9]{7}$/.test(cleaned)) {
+    return 'United Arab Emirates';
+  }
 
   const formatted = cleaned.startsWith('00')
     ? '+' + cleaned.slice(2)
@@ -866,15 +892,21 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
 
   // Nationality / Country specific resolution
   if (normalizedKey.includes('nationality') || normalizedKey.includes('country')) {
-    if (opp.nationality && opp.nationality.trim()) return opp.nationality.trim();
-    if (opp.contact?.nationality && opp.contact.nationality.trim()) return opp.contact.nationality.trim();
+    const isInvalid = (val: string | null | undefined) => {
+      if (!val) return true;
+      const s = val.trim().toLowerCase();
+      return !s || ['unspecified', 'null', 'none', 'n/a', '-', 'unknown', 'undefined'].includes(s);
+    };
+
+    if (!isInvalid(opp.nationality)) return opp.nationality.trim();
+    if (!isInvalid(opp.contact?.nationality)) return opp.contact.nationality.trim();
 
     const checkJson = (cf: any) => {
       if (!cf) return null;
       if (typeof cf === 'object' && !Array.isArray(cf)) {
         for (const [k, v] of Object.entries(cf)) {
           if (k.toLowerCase().includes('nationality') || k.toLowerCase().includes('country')) {
-            if (v && typeof v === 'string' && v.trim()) return v.trim();
+            if (v && typeof v === 'string' && !isInvalid(v)) return v.trim();
           }
         }
       }
@@ -883,7 +915,7 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
           const keyName = String(item.key || item.name || item.id || '').toLowerCase();
           if (keyName.includes('nationality') || keyName.includes('country')) {
             const val = item.value || item.field_value;
-            if (val && typeof val === 'string' && val.trim()) return val.trim();
+            if (val && typeof val === 'string' && !isInvalid(val)) return val.trim();
           }
         }
       }
@@ -896,25 +928,30 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
     const fromContactJson = checkJson(opp.contact?.customFields);
     if (fromContactJson) return fromContactJson;
 
-    // Smart fallback: Phone country code (from contact.phone, opp.phone, or deal name!)
-    const possiblePhones = [
+    // Smart fallback: Phone country code (from contact.phone, opp.phone, or deal name, or contact name)
+    const rawCandidates: (string | null | undefined)[] = [
       opp.contact?.phone,
       (opp as any).phone,
       (opp as any).contactPhone,
-      ...(opp.name ? opp.name.match(/\+?[0-9]{8,15}/g) || [] : []),
-      ...(opp.source ? opp.source.match(/\+?[0-9]{8,15}/g) || [] : []),
+      opp.name,
+      opp.contact ? `${opp.contact.firstName || ''} ${opp.contact.lastName || ''}` : null,
+      opp.source,
     ];
 
-    for (const p of possiblePhones) {
-      if (p) {
-        const country = inferCountryFromPhone(p);
-        if (country) return country;
-      }
+    const phoneCandidates: string[] = [];
+    for (const c of rawCandidates) {
+      if (!c) continue;
+      phoneCandidates.push(...extractPhoneCandidates(c));
+    }
+
+    for (const p of phoneCandidates) {
+      const country = inferCountryFromPhone(p);
+      if (country) return country;
     }
 
     // Keyword detection in deal name, contact name, or lead source
     const textToScan = `${opp.name || ''} ${opp.contact?.firstName || ''} ${opp.contact?.lastName || ''} ${opp.source || ''}`.toLowerCase();
-    if (textToScan.includes('uae') || textToScan.includes('dubai') || textToScan.includes('emirates') || textToScan.includes('emirati') || textToScan.includes('abu dhabi')) {
+    if (textToScan.includes('uae') || textToScan.includes('dubai') || textToScan.includes('emirates') || textToScan.includes('emirati') || textToScan.includes('abu dhabi') || textToScan.includes('sharjah')) {
       return 'United Arab Emirates';
     }
     if (textToScan.includes('uk') || textToScan.includes('british') || textToScan.includes('britain') || textToScan.includes('england') || textToScan.includes('london')) {

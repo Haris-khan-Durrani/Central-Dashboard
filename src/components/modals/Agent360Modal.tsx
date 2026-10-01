@@ -305,13 +305,22 @@ export default function Agent360Modal({
     }
   };
 
-  // PDF Report Generator (Executive layout, spans full A4 width, crisp high-contrast print styling)
+
+
+  // PDF Report Generator (Executive layout, clean visual summaries, zero raw contact list dump)
   const handleDownloadPdf = () => {
     setIsGeneratingPdf(true);
     try {
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
       const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
       const generatedAt = new Date().toLocaleString();
+
+      const totalPipelineDeals = stageEntries.reduce((acc, [, count]) => acc + count, 0);
+      const wonDeals = deals.filter((d: any) => (d.status || '').toLowerCase() === 'won').slice(0, 6);
+      const totalSegLeads = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.leads || 0), 0);
+      const totalSegWon = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.won || 0), 0);
+      const totalSegRevenue = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.revenue || 0), 0);
+      const totalSegConversion = totalSegLeads > 0 ? `${((totalSegWon / totalSegLeads) * 100).toFixed(1)}%` : '0.0%';
 
       const htmlContent = `
 <!DOCTYPE html>
@@ -322,7 +331,7 @@ export default function Agent360Modal({
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm 15mm 12mm 15mm;
+      margin: 10mm 12mm 10mm 12mm;
     }
     *, *:before, *:after {
       box-sizing: border-box;
@@ -335,9 +344,9 @@ export default function Agent360Modal({
       padding: 0 !important;
       background: #ffffff;
       color: #0f172a;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      font-size: 11px;
-      line-height: 1.4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10px;
+      line-height: 1.35;
     }
     .report-wrap {
       width: 100% !important;
@@ -348,31 +357,31 @@ export default function Agent360Modal({
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 2.5px solid #1e3a8a;
-      padding-bottom: 10px;
-      margin-bottom: 12px;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
     }
     .title-block h1 {
-      margin: 0 0 3px 0;
-      font-size: 17px;
+      margin: 0 0 2px 0;
+      font-size: 16px;
       font-weight: 800;
       color: #1e3a8a;
       letter-spacing: -0.3px;
     }
     .title-block p {
       margin: 0;
-      font-size: 10.5px;
+      font-size: 10px;
       color: #475569;
     }
     .badge-bar {
       display: flex;
       gap: 6px;
-      margin-top: 6px;
+      margin-top: 5px;
     }
     .badge {
       display: inline-block;
       padding: 2px 7px;
       border-radius: 4px;
-      font-size: 8.5px;
+      font-size: 8px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
@@ -383,86 +392,137 @@ export default function Agent360Modal({
 
     .agent-card {
       background: #f8fafc;
-      border: 1.5px solid #cbd5e1;
+      border: 1px solid #cbd5e1;
       border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 12px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .agent-meta h2 {
       margin: 0 0 2px 0;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 800;
       color: #0f172a;
     }
     .agent-meta p {
       margin: 0;
-      font-size: 10px;
+      font-size: 9.5px;
       color: #475569;
+    }
+
+    .target-box {
+      text-align: right;
+      min-width: 200px;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #16a34a;
+      border-radius: 3px;
     }
 
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       width: 100%;
     }
     .kpi-card {
-      border: 1.5px solid #cbd5e1;
+      border: 1px solid #cbd5e1;
       border-radius: 8px;
       padding: 8px 10px;
       background: #ffffff;
     }
-    .kpi-label { font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase; }
-    .kpi-value { font-size: 17px; font-weight: 900; color: #0f172a; margin: 3px 0 2px 0; }
-    .kpi-sub { font-size: 9px; font-weight: 700; color: #2563eb; }
+    .kpi-label { font-size: 8.5px; font-weight: 700; color: #475569; text-transform: uppercase; }
+    .kpi-value { font-size: 16px; font-weight: 900; color: #0f172a; margin: 2px 0; }
+    .kpi-sub { font-size: 8.5px; font-weight: 700; }
 
     .section-title {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 800;
       text-transform: uppercase;
       color: #1e3a8a;
-      letter-spacing: 0.4px;
-      margin: 12px 0 5px 0;
+      letter-spacing: 0.3px;
+      margin: 10px 0 5px 0;
       border-bottom: 1.5px solid #cbd5e1;
       padding-bottom: 3px;
+    }
+
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
     table {
       width: 100% !important;
       border-collapse: collapse;
-      font-size: 9.5px;
-      margin-bottom: 12px;
+      font-size: 9px;
+      margin-bottom: 8px;
     }
     th {
       background: #f1f5f9;
       color: #1e293b;
       text-align: left;
-      padding: 5px 7px;
+      padding: 4px 6px;
       font-weight: 800;
       border: 1px solid #cbd5e1;
     }
     td {
-      padding: 5px 7px;
+      padding: 4px 6px;
       border: 1px solid #e2e8f0;
       color: #0f172a;
     }
     tr:nth-child(even) td { background: #f8fafc; }
+    tfoot td {
+      background: #f1f5f9 !important;
+      font-weight: 800;
+      border-top: 1.5px solid #94a3b8;
+    }
+
+    .banner-box {
+      border: 1px solid #cbd5e1;
+      border-left: 3.5px solid #2563eb;
+      background: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .banner-title {
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #1e3a8a;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .banner-desc {
+      font-size: 9px;
+      color: #334155;
+      line-height: 1.35;
+    }
 
     .status-won { color: #15803d; font-weight: 800; background: #dcfce7; padding: 1px 5px; border-radius: 3px; border: 1px solid #bbf7d0; }
     .status-lost { color: #b91c1c; font-weight: 800; background: #fee2e2; padding: 1px 5px; border-radius: 3px; border: 1px solid #fecaca; }
     .status-open { color: #1d4ed8; font-weight: 800; background: #dbeafe; padding: 1px 5px; border-radius: 3px; border: 1px solid #bfdbfe; }
 
     .footer {
-      margin-top: 14px;
-      padding-top: 6px;
+      margin-top: 10px;
+      padding-top: 5px;
       border-top: 1px solid #cbd5e1;
       display: flex;
       justify-content: space-between;
-      font-size: 8.5px;
+      font-size: 8px;
       color: #64748b;
     }
   </style>
@@ -480,23 +540,29 @@ export default function Agent360Modal({
         </div>
       </div>
       <div style="text-align: right;">
-        <div style="font-size: 10px; font-weight: 800; color: #0f172a;">EXECUTIVE SUMMARY</div>
-        <div style="font-size: 9px; color: #475569;">Generated: ${generatedAt}</div>
+        <div style="font-size: 9.5px; font-weight: 800; color: #0f172a;">EXECUTIVE SUMMARY</div>
+        <div style="font-size: 8.5px; color: #475569;">Generated: ${generatedAt}</div>
       </div>
     </div>
 
+    <!-- Agent Profile & Target Goal -->
     <div class="agent-card">
       <div class="agent-meta">
         <h2>${agent.name}</h2>
         <p>${agent.role} · ${reportData?.user?.email || agent.email || 'Sales Consultant'}</p>
       </div>
-      <div style="text-align: right;">
-        <div style="font-size: 9px; color: #475569; text-transform: uppercase; font-weight: 700;">Target Goal</div>
-        <div style="font-size: 13px; font-weight: 900; color: #0f172a;">${formatCurrency(metrics.targetRevenue)}</div>
-        <div style="font-size: 9px; color: #15803d; font-weight: 800;">${metrics.targetProgress}% Achieved</div>
+      <div class="target-box">
+        <div style="display: flex; justify-content: space-between; font-size: 8.5px; margin-bottom: 2px;">
+          <span style="color: #475569; font-weight: 700;">QUOTA: ${formatCurrency(metrics.targetRevenue)}</span>
+          <span style="color: #15803d; font-weight: 800;">${formatCurrency(metrics.revenue)} (${metrics.targetProgress}%)</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" style="width: ${Math.min(100, metrics.targetProgress)}%;"></div>
+        </div>
       </div>
     </div>
 
+    <!-- 4 KPI Performance Cards -->
     <div class="kpi-grid">
       <div class="kpi-card" style="border-top: 3px solid #16a34a;">
         <div class="kpi-label">Deals Won</div>
@@ -506,92 +572,146 @@ export default function Agent360Modal({
       <div class="kpi-card" style="border-top: 3px solid #2563eb;">
         <div class="kpi-label">Leads Handled</div>
         <div class="kpi-value" style="color: #1d4ed8;">${metrics.leads}</div>
-        <div class="kpi-sub">${metrics.worked} Active (${workedRate}%)</div>
+        <div class="kpi-sub" style="color: #2563eb;">${metrics.worked} Active (${workedRate}%)</div>
       </div>
       <div class="kpi-card" style="border-top: 3px solid #7e22ce;">
         <div class="kpi-label">Conversion Rate</div>
         <div class="kpi-value" style="color: #7e22ce;">${metrics.conversion}</div>
-        <div class="kpi-sub">Won / Leads Ratio</div>
+        <div class="kpi-sub" style="color: #7e22ce;">Won / Leads Ratio</div>
       </div>
       <div class="kpi-card" style="border-top: 3px solid #0891b2;">
         <div class="kpi-label">Tasks Due / Overdue</div>
         <div class="kpi-value">${metrics.tasksToday} / <span style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">${metrics.tasksOverdue}</span></div>
-        <div class="kpi-sub">${metrics.tasksPending} Pending Tasks</div>
+        <div class="kpi-sub" style="color: #0891b2;">${metrics.tasksPending} Pending Tasks</div>
       </div>
     </div>
 
-    <!-- Auto-Segregation Table -->
-    <div class="section-title">Client Breakdown by ${cleanSegLabel} (${segregation.items?.length || 0} Categories)</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 35%;">${cleanSegLabel}</th>
-          <th style="width: 15%; text-align: center;">Total Leads</th>
-          <th style="width: 15%; text-align: center;">Won Deals</th>
-          <th style="width: 20%; text-align: right;">Won Revenue</th>
-          <th style="width: 15%; text-align: right;">Win Rate</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${
-          segregation.items && segregation.items.length > 0
-            ? segregation.items
-                .slice(0, 15)
-                .map(
-                  (item: any) => `
-          <tr>
-            <td><strong>${item.value || 'Unspecified'}</strong></td>
-            <td style="text-align: center;">${item.leads}</td>
-            <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
-            <td style="text-align: right; font-weight: 800;">${formatCurrency(item.revenue)}</td>
-            <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
-          </tr>
-        `
-                )
-                .join('')
-            : `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 10px;">No categorization data available.</td></tr>`
-        }
-      </tbody>
-    </table>
+    <!-- 2-Column Section: Segregation / Nationality Table + Pipeline Stages Table -->
+    <div class="grid-2col">
+      <div>
+        <div class="section-title">Client Segregation by ${cleanSegLabel}</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40%;">${cleanSegLabel}</th>
+              <th style="width: 20%; text-align: center;">Leads</th>
+              <th style="width: 20%; text-align: center;">Won</th>
+              <th style="width: 20%; text-align: right;">Win Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              segregation.items && segregation.items.length > 0
+                ? segregation.items
+                    .slice(0, 10)
+                    .map(
+                      (item: any) => `
+              <tr>
+                <td><strong>${item.value || 'Unspecified'}</strong></td>
+                <td style="text-align: center;">${item.leads} <span style="color: #64748b; font-size: 8px;">(${item.percentage}%)</span></td>
+                <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
+                <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
+              </tr>
+            `
+                    )
+                    .join('')
+                : `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 8px;">No categorization data available.</td></tr>`
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              <td style="text-align: center;">${totalSegLeads}</td>
+              <td style="text-align: center; color: #15803d;">${totalSegWon}</td>
+              <td style="text-align: right; color: #1d4ed8;">${totalSegConversion}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
-    <!-- Deals Table -->
-    <div class="section-title">Deals & Opportunities Audit (${deals.length} Recorded in Period)</div>
+      <div>
+        <div class="section-title">Pipeline Stage Distribution</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50%;">Stage Name</th>
+              <th style="width: 25%; text-align: center;">Active Deals</th>
+              <th style="width: 25%; text-align: right;">% Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              stageEntries.length > 0
+                ? stageEntries
+                    .slice(0, 10)
+                    .map(([st, cnt]) => {
+                      const pct = totalPipelineDeals > 0 ? Math.round((cnt / totalPipelineDeals) * 100) : 0;
+                      return `
+              <tr>
+                <td><strong>${st}</strong></td>
+                <td style="text-align: center; font-weight: 700;">${cnt}</td>
+                <td style="text-align: right; color: #475569;">${pct}%</td>
+              </tr>
+            `;
+                    })
+                    .join('')
+                : `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 8px;">No pipeline stage data.</td></tr>`
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total Pipeline Deals</td>
+              <td style="text-align: center;">${totalPipelineDeals}</td>
+              <td style="text-align: right;">100%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Closed Won Deals Highlights (Top Deals Only) or Pipeline Status Banner -->
+    ${
+      wonDeals.length > 0
+        ? `
+    <div class="section-title">Closed Won Highlights (${wonDeals.length} Won Deals)</div>
     <table>
       <thead>
         <tr>
-          <th style="width: 24%;">Deal / Client</th>
-          <th style="width: 18%;">Contact Info</th>
-          <th style="width: 16%;">${cleanSegLabel}</th>
-          <th style="width: 14%;">Stage</th>
-          <th style="width: 9%;">Status</th>
-          <th style="width: 10%; text-align: right;">Value</th>
-          <th style="width: 9%; text-align: right;">${dateBasis === 'won' ? 'Won Date' : 'Created Date'}</th>
+          <th style="width: 32%;">Deal / Client</th>
+          <th style="width: 20%;">${cleanSegLabel}</th>
+          <th style="width: 18%;">Stage</th>
+          <th style="width: 15%; text-align: right;">Won Revenue</th>
+          <th style="width: 15%; text-align: right;">Won Date</th>
         </tr>
       </thead>
       <tbody>
-        ${
-          deals.length > 0
-            ? deals
-                .slice(0, 30)
-                .map(
-                  (d: any) => `
+        ${wonDeals
+          .map(
+            (d: any) => `
           <tr>
-            <td><strong>${d.name || 'Untitled Deal'}</strong></td>
-            <td>${d.contactName || d.contactPhone || 'Direct Client'}</td>
+            <td><strong>${d.name || 'Won Deal'}</strong> <span style="color: #64748b; font-size: 8px;">(${d.contactName || 'Direct'})</span></td>
             <td><span style="font-weight: 700; color: #4338ca;">${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
-            <td>${d.stageName || 'Pipeline Stage'}</td>
-            <td><span class="status-${(d.status || 'open').toLowerCase()}">${(d.status || 'open').toUpperCase()}</span></td>
-            <td style="text-align: right; font-weight: 800;">${formatCurrency(d.monetaryValue || 0)}</td>
+            <td>${d.stageName || 'Won'}</td>
+            <td style="text-align: right; font-weight: 800; color: #15803d;">${formatCurrency(d.monetaryValue || 0)}</td>
             <td style="text-align: right; color: #475569;">${(d.wonAt || d.createdAt || '').slice(0, 10)}</td>
           </tr>
         `
-                )
-                .join('')
-            : `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 14px;">No deals found for the selected ${basisLabel}.</td></tr>`
-        }
+          )
+          .join('')}
       </tbody>
     </table>
+    `
+        : `
+    <div class="banner-box">
+      <div class="banner-title">Pipeline Opportunity & Follow-up Health</div>
+      <div class="banner-desc">
+        There are <strong>0 Closed Won transactions</strong> recorded for the selected period. The consultant actively oversees <strong>${metrics.leads} pipeline opportunities</strong> across <strong>${stageEntries.length} stages</strong>, with <strong>${metrics.tasksPending} scheduled follow-ups</strong> (${metrics.tasksOverdue > 0 ? `<span style="color: #b91c1c; font-weight: 700;">${metrics.tasksOverdue} overdue</span>` : '0 overdue'}).
+      </div>
+    </div>
+    `
+    }
 
+    <!-- Appointments & Consultations (Max 4-5) -->
     ${
       appointments.length > 0
         ? `
@@ -599,16 +719,16 @@ export default function Agent360Modal({
     <table>
       <thead>
         <tr>
-          <th style="width: 32%;">Meeting Title</th>
-          <th style="width: 26%;">Client</th>
-          <th style="width: 14%;">Mode</th>
-          <th style="width: 14%;">Status</th>
-          <th style="width: 14%; text-align: right;">Date & Time</th>
+          <th style="width: 35%;">Meeting Title</th>
+          <th style="width: 25%;">Client</th>
+          <th style="width: 15%;">Mode</th>
+          <th style="width: 10%;">Status</th>
+          <th style="width: 15%; text-align: right;">Date & Time</th>
         </tr>
       </thead>
       <tbody>
         ${appointments
-          .slice(0, 10)
+          .slice(0, 5)
           .map(
             (a: any) => `
           <tr>
@@ -635,8 +755,6 @@ export default function Agent360Modal({
 </body>
 </html>
       `;
-
-      // Use a full-desktop width hidden iframe so the browser print engine formats to full 100% A4 width
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.left = '-99999px';
