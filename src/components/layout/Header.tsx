@@ -20,6 +20,7 @@ import {
   ExternalLink,
   User,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
 import { useLocationContext } from '@/context/LocationContext';
 
@@ -394,8 +395,8 @@ export default function Header({
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-600"></span>
           </button>
 
-          {/* Profile Avatar */}
-          <div className="flex items-center">
+          {/* Profile Avatar & Logout */}
+          <div className="flex items-center gap-2">
             <img
               src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80"
               alt="Admin Profile"
@@ -405,6 +406,20 @@ export default function Header({
                   'https://placehold.co/100x100/cbd5e1/1e293b?text=Admin';
               }}
             />
+            <button
+              onClick={async () => {
+                try {
+                  await fetch('/api/auth/logout', { method: 'POST' });
+                  window.location.href = '/login';
+                } catch {
+                  window.location.href = '/login';
+                }
+              }}
+              className="p-1.5 rounded-lg bg-gray-100 hover:bg-rose-50 text-gray-500 hover:text-rose-600 transition-colors border border-gray-200"
+              title="Sign Out of Central Dashboard"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
