@@ -320,9 +320,12 @@ export default function Agent360Modal({
 
       const totalPipelineDeals = stageEntries.reduce((acc, [, count]) => acc + count, 0);
       const wonDeals = deals.filter((d: any) => (d.status || '').toLowerCase() === 'won').slice(0, 5);
+      const activeDeals = deals.filter((d: any) => (d.status || '').toLowerCase() !== 'won').slice(0, 5);
+      const displayDeals = wonDeals.length > 0 ? wonDeals : activeDeals;
+      const isShowingWon = wonDeals.length > 0;
+
       const totalSegLeads = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.leads || 0), 0);
       const totalSegWon = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.won || 0), 0);
-      const totalSegRevenue = (segregation.items || []).reduce((acc: number, item: any) => acc + (item.revenue || 0), 0);
       const totalSegConversion = totalSegLeads > 0 ? `${((totalSegWon / totalSegLeads) * 100).toFixed(1)}%` : '0.0%';
 
       const htmlContent = `
@@ -334,7 +337,7 @@ export default function Agent360Modal({
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm 14mm 12mm 14mm;
+      margin: 10mm 12mm 10mm 12mm;
     }
     *, *:before, *:after {
       box-sizing: border-box;
@@ -343,7 +346,7 @@ export default function Agent360Modal({
     }
     html, body {
       width: 100% !important;
-      max-width: 100% !important;
+      height: 100%;
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff;
@@ -354,51 +357,92 @@ export default function Agent360Modal({
     }
     .report-wrap {
       width: 100% !important;
-      max-width: 100% !important;
+      min-height: 272mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
     }
+    .content-body {
+      flex: 1 0 auto;
+    }
+
+    /* Top Corporate Header */
     .header {
-      border-top: 4px solid #1d4ed8;
-      padding-top: 8px;
+      border-top: 5px solid #1e40af;
+      padding-top: 10px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 2px solid #e2e8f0;
-      padding-bottom: 10px;
+      padding-bottom: 12px;
       margin-bottom: 12px;
     }
-    .title-block h1 {
-      margin: 0 0 3px 0;
-      font-size: 17px;
-      font-weight: 900;
-      color: #1e3a8a;
-      letter-spacing: -0.3px;
+    .title-block .sub-heading {
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #2563eb;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
     }
-    .title-block p {
-      margin: 0;
-      font-size: 11px;
-      color: #475569;
+    .title-block h1 {
+      margin: 0 0 5px 0;
+      font-size: 19px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.4px;
     }
     .badge-bar {
       display: flex;
       gap: 6px;
-      margin-top: 6px;
+      align-items: center;
     }
     .badge {
-      display: inline-block;
-      padding: 2.5px 8px;
-      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 5px;
       font-size: 8.5px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
-    .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-    .badge-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-    .badge-purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+    .badge-blue { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .badge-green { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-purple { background: #faf5ff; color: #6b21a8; border: 1px solid #e9d5ff; }
 
+    .header-meta {
+      text-align: right;
+    }
+    .header-meta .meta-title {
+      font-size: 11px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: 0.3px;
+    }
+    .header-meta .meta-sub {
+      font-size: 9px;
+      color: #475569;
+      margin-top: 2px;
+    }
+    .header-meta .meta-pill {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #16a34a;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    /* Agent Profile & Quota Box */
     .agent-card {
-      background: #f8fafc;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
       border: 1.5px solid #cbd5e1;
+      border-left: 5px solid #2563eb;
       border-radius: 8px;
       padding: 10px 14px;
       margin-bottom: 12px;
@@ -409,7 +453,7 @@ export default function Agent360Modal({
     .agent-meta h2 {
       margin: 0 0 2px 0;
       font-size: 15px;
-      font-weight: 800;
+      font-weight: 900;
       color: #0f172a;
     }
     .agent-meta p {
@@ -417,14 +461,13 @@ export default function Agent360Modal({
       font-size: 10.5px;
       color: #475569;
     }
-
     .target-box {
       text-align: right;
-      min-width: 220px;
+      min-width: 240px;
     }
     .progress-bar-bg {
       width: 100%;
-      height: 7px;
+      height: 8px;
       background: #e2e8f0;
       border-radius: 4px;
       overflow: hidden;
@@ -436,30 +479,48 @@ export default function Agent360Modal({
       border-radius: 4px;
     }
 
+    /* 4 Primary KPI Cards */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 11px;
       width: 100%;
     }
     .kpi-card {
-      border: 1.5px solid #cbd5e1;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
-    .kpi-label { font-size: 9px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; }
-    .kpi-value { font-size: 18px; font-weight: 900; color: #0f172a; margin: 3px 0; }
-    .kpi-sub { font-size: 9px; font-weight: 700; }
+    .kpi-label {
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .kpi-value {
+      font-size: 20px;
+      font-weight: 900;
+      color: #0f172a;
+      margin: 2px 0;
+      line-height: 1.1;
+    }
+    .kpi-sub {
+      font-size: 9px;
+      font-weight: 700;
+    }
 
+    /* Benchmark Strip */
     .benchmark-strip {
-      background: #f1f5f9;
+      background: #f8fafc;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
       padding: 6px 12px;
       margin-bottom: 12px;
-      font-size: 9.5px;
+      font-size: 9px;
       color: #334155;
       display: flex;
       align-items: center;
@@ -467,49 +528,64 @@ export default function Agent360Modal({
       flex-wrap: wrap;
     }
     .benchmark-label {
-      font-weight: 800;
+      font-weight: 900;
       color: #1e3a8a;
       text-transform: uppercase;
-      font-size: 9px;
+      font-size: 8.5px;
+      letter-spacing: 0.3px;
     }
     .sep { color: #94a3b8; }
 
+    /* Tables */
     .section-title {
-      font-size: 11px;
-      font-weight: 800;
+      font-size: 10.5px;
+      font-weight: 900;
       text-transform: uppercase;
-      color: #1e3a8a;
+      color: #0f172a;
       letter-spacing: 0.4px;
-      margin: 12px 0 6px 0;
+      margin: 11px 0 5px 0;
+      padding-bottom: 3px;
       border-bottom: 1.5px solid #cbd5e1;
-      padding-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-title .badge-counter {
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #2563eb;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 1px 6px;
+      border-radius: 4px;
     }
 
     .grid-2col {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 11px;
     }
 
     table {
       width: 100% !important;
       border-collapse: collapse;
-      font-size: 10px;
-      margin-bottom: 8px;
+      font-size: 9.5px;
+      margin-bottom: 4px;
     }
     th {
-      background: #f8fafc;
-      color: #1e293b;
+      background: #1e293b;
+      color: #ffffff;
       text-align: left;
       padding: 6px 8px;
       font-weight: 800;
-      border: 1px solid #cbd5e1;
-      font-size: 9.5px;
+      font-size: 8.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
     td {
-      padding: 6px 8px;
-      border: 1px solid #e2e8f0;
+      padding: 5.5px 8px;
+      border-bottom: 1px solid #e2e8f0;
       color: #0f172a;
     }
     tr:nth-child(even) td { background: #f8fafc; }
@@ -519,25 +595,29 @@ export default function Agent360Modal({
       border-top: 1.5px solid #94a3b8;
     }
 
+    /* Diagnostics Card */
     .diagnostics-card {
-      border: 1.5px solid #cbd5e1;
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid #4338ca;
       border-radius: 8px;
       background: #f8fafc;
-      padding: 10px 12px;
-      margin-bottom: 12px;
+      padding: 9px 12px;
+      margin-bottom: 11px;
     }
     .diagnostics-header {
-      font-size: 10px;
-      font-weight: 800;
-      color: #1e3a8a;
+      font-size: 9.5px;
+      font-weight: 900;
+      color: #312e81;
       text-transform: uppercase;
       margin-bottom: 6px;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
+      display: flex;
+      justify-content: space-between;
     }
     .diagnostics-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+      gap: 8px;
     }
     .diagnostics-item {
       background: #ffffff;
@@ -546,7 +626,7 @@ export default function Agent360Modal({
       padding: 7px 10px;
     }
     .diagnostics-item-title {
-      font-size: 8.5px;
+      font-size: 8px;
       font-weight: 800;
       color: #64748b;
       text-transform: uppercase;
@@ -554,299 +634,348 @@ export default function Agent360Modal({
     }
     .diagnostics-item-value {
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 900;
       color: #0f172a;
       margin-bottom: 2px;
     }
     .diagnostics-item-sub {
-      font-size: 8.5px;
+      font-size: 8px;
       color: #475569;
-      line-height: 1.3;
+      line-height: 1.25;
     }
 
-    .status-won { color: #15803d; font-weight: 800; background: #dcfce7; padding: 2px 6px; border-radius: 3px; border: 1px solid #bbf7d0; }
-    .status-lost { color: #b91c1c; font-weight: 800; background: #fee2e2; padding: 2px 6px; border-radius: 3px; border: 1px solid #fecaca; }
-    .status-open { color: #1d4ed8; font-weight: 800; background: #dbeafe; padding: 2px 6px; border-radius: 3px; border: 1px solid #bfdbfe; }
-
-    .footer {
-      margin-top: 14px;
-      padding-top: 6px;
-      border-top: 1px solid #cbd5e1;
+    /* Executive Action Plan Directives */
+    .action-panel {
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid #059669;
+      border-radius: 8px;
+      background: #f0fdf4;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+    }
+    .action-header {
+      font-size: 9.5px;
+      font-weight: 900;
+      color: #065f46;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 6px;
       display: flex;
       justify-content: space-between;
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .action-item {
+      background: #ffffff;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      padding: 7px 9px;
       font-size: 8.5px;
+      color: #1f2937;
+      line-height: 1.3;
+    }
+    .action-item strong {
+      display: block;
+      color: #065f46;
+      font-size: 9px;
+      margin-bottom: 2px;
+    }
+
+    .status-won { color: #15803d; font-weight: 800; background: #dcfce7; padding: 2px 6px; border-radius: 3px; border: 1px solid #bbf7d0; font-size: 8px; }
+    .status-lost { color: #b91c1c; font-weight: 800; background: #fee2e2; padding: 2px 6px; border-radius: 3px; border: 1px solid #fecaca; font-size: 8px; }
+    .status-open { color: #1d4ed8; font-weight: 800; background: #dbeafe; padding: 2px 6px; border-radius: 3px; border: 1px solid #bfdbfe; font-size: 8px; }
+
+    /* Footer pinned to bottom */
+    .footer {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1.5px solid #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
       color: #64748b;
+      font-weight: 600;
     }
   </style>
 </head>
 <body>
   <div class="report-wrap">
-    <div class="header">
-      <div class="title-block">
-        <h1>360° SALES PERFORMANCE AUDIT REPORT</h1>
-        <p>GoHighLevel Intelligence Engine · ${reportData?.location?.name || 'Sales Department'}</p>
-        <div class="badge-bar">
-          <span class="badge badge-blue">SCOPE: ${rangeLabel.toUpperCase()}</span>
-          <span class="badge badge-green">BASIS: ${basisLabel.toUpperCase()}</span>
-          <span class="badge badge-purple">BREAKDOWN: ${cleanSegLabel.toUpperCase()}</span>
-        </div>
-      </div>
-      <div style="text-align: right;">
-        <div style="font-size: 10px; font-weight: 800; color: #0f172a;">EXECUTIVE AUDIT SUMMARY</div>
-        <div style="font-size: 9px; color: #475569;">Generated: ${generatedAt}</div>
-        <div style="font-size: 8.5px; color: #16a34a; font-weight: 700; margin-top: 2px;">● Verified CRM Record</div>
-      </div>
-    </div>
-
-    <!-- Agent Profile & Target Goal -->
-    <div class="agent-card">
-      <div class="agent-meta">
-        <h2>${agent.name}</h2>
-        <p>${agent.role} · ${reportData?.user?.email || agent.email || 'Sales Consultant'}</p>
-      </div>
-      <div class="target-box">
-        <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
-          <span style="color: #475569; font-weight: 700;">QUOTA: ${formatCurrency(metrics.targetRevenue)}</span>
-          <span style="color: #15803d; font-weight: 800;">${formatCurrency(metrics.revenue)} (${metrics.targetProgress}% Achieved)</span>
-        </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" style="width: ${Math.min(100, metrics.targetProgress)}%;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4 KPI Performance Cards -->
-    <div class="kpi-grid">
-      <div class="kpi-card" style="border-top: 3.5px solid #16a34a;">
-        <div class="kpi-label">Deals Won</div>
-        <div class="kpi-value" style="color: #15803d;">${metrics.won}</div>
-        <div class="kpi-sub" style="color: #15803d;">${formatCurrency(metrics.revenue)} Won</div>
-      </div>
-      <div class="kpi-card" style="border-top: 3.5px solid #2563eb;">
-        <div class="kpi-label">Leads Handled</div>
-        <div class="kpi-value" style="color: #1d4ed8;">${metrics.leads}</div>
-        <div class="kpi-sub" style="color: #2563eb;">${metrics.worked} Active (${workedRate}%)</div>
-      </div>
-      <div class="kpi-card" style="border-top: 3.5px solid #7e22ce;">
-        <div class="kpi-label">Conversion Rate</div>
-        <div class="kpi-value" style="color: #7e22ce;">${metrics.conversion}</div>
-        <div class="kpi-sub" style="color: #7e22ce;">Won / Leads Ratio</div>
-      </div>
-      <div class="kpi-card" style="border-top: 3.5px solid #0891b2;">
-        <div class="kpi-label">Tasks Due / Overdue</div>
-        <div class="kpi-value">${metrics.tasksToday} / <span style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">${metrics.tasksOverdue}</span></div>
-        <div class="kpi-sub" style="color: #0891b2;">${metrics.tasksPending} Pending Tasks</div>
-      </div>
-    </div>
-
-    <!-- Lifetime Historical Benchmark Strip -->
-    <div class="benchmark-strip">
-      <span class="benchmark-label">Lifetime Historical Benchmark:</span>
-      <span><strong>${lifetime?.leads || metrics.leads}</strong> Lifetime Leads</span>
-      <span class="sep">·</span>
-      <span><strong style="color: #15803d;">${lifetime?.won || metrics.won}</strong> Won Deals (${lifetime?.conversion || metrics.conversion} Win Rate)</span>
-      <span class="sep">·</span>
-      <span><strong>${formatCurrency(lifetime?.revenue || metrics.revenue)}</strong> Total Won Revenue</span>
-    </div>
-
-    <!-- 2-Column Section: Segregation / Nationality Table + Pipeline Stages Table -->
-    <div class="grid-2col">
-      <div>
-        <div class="section-title">Client Segregation by ${cleanSegLabel}</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 40%;">${cleanSegLabel}</th>
-              <th style="width: 20%; text-align: center;">Leads</th>
-              <th style="width: 20%; text-align: center;">Won</th>
-              <th style="width: 20%; text-align: right;">Win Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              segregation.items && segregation.items.length > 0
-                ? segregation.items
-                    .slice(0, 8)
-                    .map(
-                      (item: any) => {
-                        const code = getCountryCode(item.value || '');
-                        const flagHtml = code
-                          ? `<img src="https://flagcdn.com/20x15/${code}.png" style="width: 13px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 4px; display: inline-block;" />`
-                          : '';
-                        return `
-              <tr>
-                <td>${flagHtml}<strong>${item.value || 'Unspecified'}</strong></td>
-                <td style="text-align: center;">${item.leads} <span style="color: #64748b; font-size: 8.5px;">(${item.percentage}%)</span></td>
-                <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
-                <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
-              </tr>
-            `;
-                      }
-                    )
-                    .join('')
-                : `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 10px;">No categorization data available.</td></tr>`
-            }
-          </tbody>
-          <tfoot>
-            <tr>
-              <td>Total</td>
-              <td style="text-align: center;">${totalSegLeads}</td>
-              <td style="text-align: center; color: #15803d;">${totalSegWon}</td>
-              <td style="text-align: right; color: #1d4ed8;">${totalSegConversion}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <div>
-        <div class="section-title">Pipeline Stage Distribution</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 48%;">Stage Name</th>
-              <th style="width: 24%; text-align: center;">Active Deals</th>
-              <th style="width: 28%; text-align: right;">% Share</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              stageEntries.length > 0
-                ? stageEntries
-                    .slice(0, 8)
-                    .map(([st, cnt]) => {
-                      const pct = totalPipelineDeals > 0 ? Math.round((cnt / totalPipelineDeals) * 100) : 0;
-                      return `
-              <tr>
-                <td><strong>${st}</strong></td>
-                <td style="text-align: center; font-weight: 700;">${cnt}</td>
-                <td style="text-align: right; color: #475569;">
-                  <span style="display: inline-block; width: 35px; text-align: right; font-weight: 700;">${pct}%</span>
-                  <span style="display: inline-block; width: 35px; height: 5px; background: #e2e8f0; border-radius: 3px; vertical-align: middle; margin-left: 4px; overflow: hidden;">
-                    <span style="display: block; width: ${pct}%; height: 100%; background: #2563eb;"></span>
-                  </span>
-                </td>
-              </tr>
-            `;
-                    })
-                    .join('')
-                : `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 10px;">No pipeline stage data.</td></tr>`
-            }
-          </tbody>
-          <tfoot>
-            <tr>
-              <td>Total Pipeline Deals</td>
-              <td style="text-align: center;">${totalPipelineDeals}</td>
-              <td style="text-align: right;">100%</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-
-    <!-- Executive Performance Analysis & Workload Diagnostics -->
-    <div class="diagnostics-card">
-      <div class="diagnostics-header">
-        <span>Executive Pipeline & Operational Diagnostics</span>
-        <span style="color: #64748b; font-weight: 700;">Audit Health Check</span>
-      </div>
-      <div class="diagnostics-grid">
-        <div class="diagnostics-item">
-          <div class="diagnostics-item-title">Pipeline Velocity</div>
-          <div class="diagnostics-item-value" style="color: #2563eb;">${workedRate}% Engagement</div>
-          <div class="diagnostics-item-sub">${metrics.worked} of ${metrics.leads} leads worked with active touches in selected period.</div>
-        </div>
-        <div class="diagnostics-item">
-          <div class="diagnostics-item-title">Follow-up SLA Compliance</div>
-          <div class="diagnostics-item-value" style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">
-            ${metrics.tasksOverdue > 0 ? `${metrics.tasksOverdue} Overdue` : '100% SLA On-Time'}
+    <div class="content-body">
+      <!-- Header -->
+      <div class="header">
+        <div class="title-block">
+          <div class="sub-heading">${reportData?.location?.name || 'Centralized Sales CRM'}</div>
+          <h1>360° EXECUTIVE SALES AUDIT REPORT</h1>
+          <div class="badge-bar">
+            <span class="badge badge-blue">Scope: ${rangeLabel}</span>
+            <span class="badge badge-green">Basis: ${basisLabel}</span>
+            <span class="badge badge-purple">Breakdown: ${cleanSegLabel}</span>
           </div>
-          <div class="diagnostics-item-sub">${metrics.tasksToday} tasks due today, ${metrics.tasksPending} total pending follow-ups.</div>
         </div>
-        <div class="diagnostics-item">
-          <div class="diagnostics-item-title">Quota Gap Analysis</div>
-          <div class="diagnostics-item-value" style="color: #0f172a;">${metrics.targetProgress}% Complete</div>
-          <div class="diagnostics-item-sub">AED ${Math.max(0, metrics.targetRevenue - metrics.revenue).toLocaleString()} remaining to hit target goal.</div>
+        <div class="header-meta">
+          <div class="meta-title">EXECUTIVE PERFORMANCE AUDIT</div>
+          <div class="meta-sub">Audit Timestamp: ${generatedAt}</div>
+          <div class="meta-pill">● Verified CRM Database Record</div>
         </div>
       </div>
-    </div>
 
-    <!-- Closed Won Deals Highlights (Top Deals Only if Won > 0) -->
-    ${
-      wonDeals.length > 0
-        ? `
-    <div class="section-title">Closed Won Highlights (${wonDeals.length} Won Deals in Period)</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 32%;">Deal / Client</th>
-          <th style="width: 20%;">${cleanSegLabel}</th>
-          <th style="width: 18%;">Stage</th>
-          <th style="width: 15%; text-align: right;">Won Revenue</th>
-          <th style="width: 15%; text-align: right;">Won Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${wonDeals
-          .map(
-            (d: any) => {
+      <!-- Agent Profile & Target Goal -->
+      <div class="agent-card">
+        <div class="agent-meta">
+          <h2>${agent.name}</h2>
+          <p>${agent.role} · ${reportData?.user?.email || agent.email || 'Sales Consultant'}</p>
+        </div>
+        <div class="target-box">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
+            <span style="color: #475569; font-weight: 700;">QUOTA: ${formatCurrency(metrics.targetRevenue)}</span>
+            <span style="color: #15803d; font-weight: 800;">${formatCurrency(metrics.revenue)} (${metrics.targetProgress}% Achieved)</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${Math.min(100, metrics.targetProgress)}%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 KPI Performance Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="border-top: 3.5px solid #16a34a;">
+          <div class="kpi-label">Deals Won</div>
+          <div class="kpi-value" style="color: #15803d;">${metrics.won}</div>
+          <div class="kpi-sub" style="color: #15803d;">${formatCurrency(metrics.revenue)} Won</div>
+        </div>
+        <div class="kpi-card" style="border-top: 3.5px solid #2563eb;">
+          <div class="kpi-label">Leads Handled</div>
+          <div class="kpi-value" style="color: #1d4ed8;">${metrics.leads}</div>
+          <div class="kpi-sub" style="color: #2563eb;">${metrics.worked} Active (${workedRate}%)</div>
+        </div>
+        <div class="kpi-card" style="border-top: 3.5px solid #7e22ce;">
+          <div class="kpi-label">Conversion Rate</div>
+          <div class="kpi-value" style="color: #7e22ce;">${metrics.conversion}</div>
+          <div class="kpi-sub" style="color: #7e22ce;">Won / Leads Ratio</div>
+        </div>
+        <div class="kpi-card" style="border-top: 3.5px solid #0891b2;">
+          <div class="kpi-label">Tasks Due / Overdue</div>
+          <div class="kpi-value">${metrics.tasksToday} / <span style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">${metrics.tasksOverdue}</span></div>
+          <div class="kpi-sub" style="color: #0891b2;">${metrics.tasksPending} Pending Tasks</div>
+        </div>
+      </div>
+
+      <!-- Lifetime Historical Benchmark Strip -->
+      <div class="benchmark-strip">
+        <span class="benchmark-label">Lifetime Historical Benchmark:</span>
+        <span><strong>${lifetime?.leads || metrics.leads}</strong> Lifetime Leads</span>
+        <span class="sep">·</span>
+        <span><strong style="color: #15803d;">${lifetime?.won || metrics.won}</strong> Won Deals (${lifetime?.conversion || metrics.conversion} Win Rate)</span>
+        <span class="sep">·</span>
+        <span><strong>${formatCurrency(lifetime?.revenue || metrics.revenue)}</strong> Total Won Revenue</span>
+      </div>
+
+      <!-- 2-Column Section: Segregation / Nationality Table + Pipeline Stages Table -->
+      <div class="grid-2col">
+        <div>
+          <div class="section-title">
+            <span>Client Segregation by ${cleanSegLabel}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40%;">${cleanSegLabel}</th>
+                <th style="width: 20%; text-align: center;">Leads</th>
+                <th style="width: 20%; text-align: center;">Won</th>
+                <th style="width: 20%; text-align: right;">Win Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                segregation.items && segregation.items.length > 0
+                  ? segregation.items
+                      .slice(0, 8)
+                      .map(
+                        (item: any) => {
+                          const code = getCountryCode(item.value || '');
+                          const flagHtml = code
+                            ? `<img src="https://flagcdn.com/20x15/${code}.png" style="width: 13px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 4px; display: inline-block;" />`
+                            : '';
+                          return `
+                <tr>
+                  <td>${flagHtml}<strong>${item.value || 'Unspecified'}</strong></td>
+                  <td style="text-align: center;">${item.leads} <span style="color: #64748b; font-size: 8px;">(${item.percentage}%)</span></td>
+                  <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
+                  <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
+                </tr>
+              `;
+                        }
+                      )
+                      .join('')
+                  : `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 8px;">No categorization data available.</td></tr>`
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td style="text-align: center;">${totalSegLeads}</td>
+                <td style="text-align: center; color: #15803d;">${totalSegWon}</td>
+                <td style="text-align: right; color: #1d4ed8;">${totalSegConversion}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div>
+          <div class="section-title">
+            <span>Pipeline Stage Distribution</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 48%;">Stage Name</th>
+                <th style="width: 24%; text-align: center;">Active Deals</th>
+                <th style="width: 28%; text-align: right;">% Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                stageEntries.length > 0
+                  ? stageEntries
+                      .slice(0, 8)
+                      .map(([st, cnt]) => {
+                        const pct = totalPipelineDeals > 0 ? Math.round((cnt / totalPipelineDeals) * 100) : 0;
+                        return `
+                <tr>
+                  <td><strong>${st}</strong></td>
+                  <td style="text-align: center; font-weight: 700;">${cnt}</td>
+                  <td style="text-align: right; color: #475569;">
+                    <span style="display: inline-block; width: 30px; text-align: right; font-weight: 700;">${pct}%</span>
+                    <span style="display: inline-block; width: 30px; height: 5px; background: #e2e8f0; border-radius: 3px; vertical-align: middle; margin-left: 4px; overflow: hidden;">
+                      <span style="display: block; width: ${pct}%; height: 100%; background: #2563eb;"></span>
+                    </span>
+                  </td>
+                </tr>
+              `;
+                      })
+                      .join('')
+                  : `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 8px;">No pipeline stage data.</td></tr>`
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total Pipeline Deals</td>
+                <td style="text-align: center;">${totalPipelineDeals}</td>
+                <td style="text-align: right;">100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Executive Performance Analysis & Workload Diagnostics -->
+      <div class="diagnostics-card">
+        <div class="diagnostics-header">
+          <span>Executive Pipeline & Operational Diagnostics</span>
+          <span style="color: #64748b; font-weight: 700;">Audit Health Check</span>
+        </div>
+        <div class="diagnostics-grid">
+          <div class="diagnostics-item">
+            <div class="diagnostics-item-title">Pipeline Velocity</div>
+            <div class="diagnostics-item-value" style="color: #2563eb;">${workedRate}% Engagement</div>
+            <div class="diagnostics-item-sub">${metrics.worked} of ${metrics.leads} leads worked with active touches in selected period.</div>
+          </div>
+          <div class="diagnostics-item">
+            <div class="diagnostics-item-title">Follow-up SLA Compliance</div>
+            <div class="diagnostics-item-value" style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">
+              ${metrics.tasksOverdue > 0 ? `${metrics.tasksOverdue} Overdue` : '100% SLA On-Time'}
+            </div>
+            <div class="diagnostics-item-sub">${metrics.tasksToday} tasks due today, ${metrics.tasksPending} total pending follow-ups.</div>
+          </div>
+          <div class="diagnostics-item">
+            <div class="diagnostics-item-title">Quota Gap Analysis</div>
+            <div class="diagnostics-item-value" style="color: #0f172a;">${metrics.targetProgress}% Complete</div>
+            <div class="diagnostics-item-sub">${formatCurrency(Math.max(0, metrics.targetRevenue - metrics.revenue))} remaining to hit target goal.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deals & Client Engagements Section (ALWAYS SHOWN) -->
+      ${
+        displayDeals.length > 0
+          ? `
+      <div class="section-title">
+        <span>${isShowingWon ? 'Closed Won Highlights' : 'Active Pipeline Opportunities & Client Engagements'}</span>
+        <span class="badge-counter">${displayDeals.length} Deals in Audit Scope</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 32%;">Deal / Client Name</th>
+            <th style="width: 20%;">${cleanSegLabel}</th>
+            <th style="width: 18%;">Current Stage</th>
+            <th style="width: 15%; text-align: right;">Deal Value</th>
+            <th style="width: 15%; text-align: right;">Status & Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${displayDeals
+            .map((d: any) => {
               const code = getCountryCode(d.customFieldValue || d.nationality || '');
               const flagHtml = code
                 ? `<img src="https://flagcdn.com/20x15/${code}.png" style="width: 13px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 4px; display: inline-block;" />`
                 : '';
+              const isWon = (d.status || '').toLowerCase() === 'won';
+              const statusClass = isWon ? 'status-won' : ((d.status || '').toLowerCase() === 'lost' ? 'status-lost' : 'status-open');
+              const dateStr = (isWon ? (d.wonAt || d.createdAt) : (d.createdAt || '')).slice(0, 10);
               return `
-          <tr>
-            <td><strong>${d.name || 'Won Deal'}</strong> <span style="color: #64748b; font-size: 8.5px;">(${d.contactName || 'Direct'})</span></td>
-            <td><span style="font-weight: 700; color: #4338ca;">${flagHtml}${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
-            <td>${d.stageName || 'Won'}</td>
-            <td style="text-align: right; font-weight: 800; color: #15803d;">${formatCurrency(d.monetaryValue || 0)}</td>
-            <td style="text-align: right; color: #475569;">${(d.wonAt || d.createdAt || '').slice(0, 10)}</td>
-          </tr>
-        `;
-            }
-          )
-          .join('')}
-      </tbody>
-    </table>
-    `
-        : ''
-    }
+            <tr>
+              <td><strong>${d.name || 'Opportunity'}</strong> <span style="color: #64748b; font-size: 8px;">(${d.contactName || 'Direct'})</span></td>
+              <td><span style="font-weight: 700; color: #4338ca;">${flagHtml}${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
+              <td>${d.stageName || (isWon ? 'Won' : 'Active Stage')}</td>
+              <td style="text-align: right; font-weight: 800; color: ${isWon ? '#15803d' : '#0f172a'};">${formatCurrency(d.monetaryValue || 0)}</td>
+              <td style="text-align: right;">
+                <span class="${statusClass}">${(d.status || 'open').toUpperCase()}</span>
+                <span style="color: #64748b; font-size: 8px; margin-left: 3px;">${dateStr}</span>
+              </td>
+            </tr>
+          `;
+            })
+            .join('')}
+        </tbody>
+      </table>
+      `
+          : ''
+      }
 
-    <!-- Appointments & Consultations (Max 4-5) -->
-    ${
-      appointments.length > 0
-        ? `
-    <div class="section-title">Client Meetings & Appointments (${appointments.length} Consultations)</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 35%;">Meeting Title</th>
-          <th style="width: 25%;">Client</th>
-          <th style="width: 15%;">Mode</th>
-          <th style="width: 10%;">Status</th>
-          <th style="width: 15%; text-align: right;">Date & Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${appointments
-          .slice(0, 4)
-          .map(
-            (a: any) => `
-          <tr>
-            <td><strong>${a.title || 'Client Consultation'}</strong></td>
-            <td>${a.clientName || 'Client'}</td>
-            <td style="text-transform: capitalize;">${a.meetingLocationType || 'Meeting'}</td>
-            <td style="text-transform: capitalize;">${a.status || 'Confirmed'}</td>
-            <td style="text-align: right; color: #475569;">${new Date(a.startTime).toLocaleDateString()} ${new Date(a.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-          </tr>
-        `
-          )
-          .join('')}
-      </tbody>
-    </table>
-    `
-        : ''
-    }
+      <!-- Strategic Management Audit Action Directives -->
+      <div class="action-panel">
+        <div class="action-header">
+          <span>Strategic Operational Directives & Action Recommendations</span>
+          <span style="color: #047857; font-weight: 800;">Management Action Plan</span>
+        </div>
+        <div class="action-grid">
+          <div class="action-item">
+            <strong>1. SLA Touch & Follow-Up Cadence</strong>
+            ${metrics.tasksOverdue > 0 
+              ? `Clear ${metrics.tasksOverdue} overdue task${metrics.tasksOverdue > 1 ? 's' : ''} immediately to restore 100% CRM touch SLA compliance.`
+              : 'Maintain consistent same-day lead touch cadence across all active client opportunities.'}
+          </div>
+          <div class="action-item">
+            <strong>2. Pipeline Conversion Focus</strong>
+            ${metrics.worked > 0
+              ? `Advance ${metrics.worked} active lead${metrics.worked > 1 ? 's' : ''} through qualification and proposal stages to drive win velocity.`
+              : 'Initiate outbound touches on newly assigned leads to establish active engagement.'}
+          </div>
+          <div class="action-item">
+            <strong>3. Quota Achievement Trajectory</strong>
+            ${metrics.targetRevenue > metrics.revenue
+              ? `Target remaining gap of ${formatCurrency(metrics.targetRevenue - metrics.revenue)} to achieve full period revenue quota target.`
+              : 'Target achieved! Continue scaling high-value client acquisitions for quota overachievement.'}
+          </div>
+        </div>
+      </div>
+    </div>
 
+    <!-- Pinned Footer at Bottom of Page -->
     <div class="footer">
       <div>CONFIDENTIAL SALES AUDIT REPORT · GOHIGHLEVEL ENTERPRISE CRM DASHBOARD</div>
       <div>Page 1 of 1 · Executive 360° Summary Report · ${agent.name}</div>
