@@ -16,6 +16,7 @@ import UpcomingMeetingsPanel from '@/components/dashboard/UpcomingMeetingsPanel'
 import AgentCardsGrid, { AgentData } from '@/components/dashboard/AgentCardsGrid';
 import PipelineVelocityFunnel from '@/components/dashboard/PipelineVelocityFunnel';
 import LeadSourceMatrix from '@/components/dashboard/LeadSourceMatrix';
+import NationalityMatrix from '@/components/dashboard/NationalityMatrix';
 import Agent360Modal from '@/components/modals/Agent360Modal';
 import CalendarViewModal from '@/components/modals/CalendarViewModal';
 
@@ -264,6 +265,7 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
     agents,
     pipelineStages,
     leadSources,
+    nationalities,
     location,
     bottlenecks,
     upcomingBookings = [],
@@ -523,8 +525,8 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
           </div>
         )}
 
-        {/* 5. Pipeline Funnel & Lead Source Matrix */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* 5. Pipeline Funnel, Lead Source Matrix & Nationality Matrix */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {pipelineStages && pipelineStages.length > 0 && (
             <div>
               <PipelineVelocityFunnel stages={pipelineStages} />
@@ -533,6 +535,11 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
           {leadSources && leadSources.length > 0 && (
             <div>
               <LeadSourceMatrix sources={leadSources} currency={currency} />
+            </div>
+          )}
+          {nationalities && nationalities.length > 0 && (
+            <div>
+              <NationalityMatrix nationalities={nationalities} currency={currency} />
             </div>
           )}
         </div>

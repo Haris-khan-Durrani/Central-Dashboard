@@ -7,6 +7,7 @@ import TopMetricCards from '@/components/dashboard/TopMetricCards';
 import AgentCardsGrid, { AgentData } from '@/components/dashboard/AgentCardsGrid';
 import PipelineVelocityFunnel from '@/components/dashboard/PipelineVelocityFunnel';
 import LeadSourceMatrix from '@/components/dashboard/LeadSourceMatrix';
+import NationalityMatrix from '@/components/dashboard/NationalityMatrix';
 import Agent360Modal from '@/components/modals/Agent360Modal';
 import BottlenecksModal from '@/components/modals/BottlenecksModal';
 import SubAccountSettingsModal from '@/components/modals/SubAccountSettingsModal';
@@ -369,13 +370,16 @@ export default function DashboardPage() {
                 />
               </div>
 
-              {/* 4. Pipeline Velocity & Lead Source Performance */}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* 4. Pipeline Velocity, Lead Source & Nationality Performance */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <div id="pipelines-section">
                   <PipelineVelocityFunnel stages={kpiData.pipelineStages || []} />
                 </div>
                 <div id="analytics-section">
                   <LeadSourceMatrix sources={kpiData.leadSources || []} currency={currency} />
+                </div>
+                <div id="nationality-section">
+                  <NationalityMatrix nationalities={kpiData.nationalities || []} currency={currency} />
                 </div>
               </div>
             </>

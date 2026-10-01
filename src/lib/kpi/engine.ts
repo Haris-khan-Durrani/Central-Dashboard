@@ -126,6 +126,14 @@ export interface CommandCenterData {
     revenue: number;
     color: string;
   }>;
+  nationalities: Array<{
+    nationality: string;
+    leads: number;
+    won: number;
+    conversionRate: string;
+    revenue: number;
+    color: string;
+  }>;
 }
 
 /**
@@ -333,12 +341,24 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       where: oppWhere,
       select: {
         id: true,
+        name: true,
         status: true,
         monetaryValue: true,
         assignedTo: true,
         pipelineId: true,
         stageId: true,
         source: true,
+        nationality: true,
+        customFields: true,
+        contact: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+            nationality: true,
+            customFields: true,
+          },
+        },
         createdAt: true,
         stageEnteredAt: true,
       },
@@ -704,6 +724,60 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 
   leadSources.sort((a, b) => b.leads - a.leads);
 
+  // 7. Nationality Performance (smart country detection from contact, custom fields, and phone numbers)
+  const nationalityStats: Record<string, { displayName: string; leads: number; won: number; revenue: number }> = {};
+  for (const opp of opportunities) {
+    const nation = extractCustomFieldValue(opp, 'contact.nationality') || 'Unspecified';
+    if (!nationalityStats[nation]) {
+      nationalityStats[nation] = { displayName: nation, leads: 0, won: 0, revenue: 0 };
+    }
+    nationalityStats[nation].leads++;
+    if (opp.status === 'won') {
+      nationalityStats[nation].won++;
+      nationalityStats[nation].revenue += opp.monetaryValue;
+    }
+  }
+
+  const nationColors: Record<string, string> = {
+    'United Arab Emirates': 'bg-emerald-600',
+    'Saudi Arabia': 'bg-green-600',
+    'Qatar': 'bg-purple-700',
+    'Kuwait': 'bg-blue-600',
+    'Oman': 'bg-red-600',
+    'Bahrain': 'bg-red-500',
+    'United Kingdom': 'bg-indigo-600',
+    'United States / Canada': 'bg-sky-600',
+    'United States': 'bg-sky-600',
+    'Canada': 'bg-red-600',
+    'India': 'bg-orange-500',
+    'Pakistan': 'bg-emerald-700',
+    'Egypt': 'bg-amber-600',
+    'Lebanon': 'bg-red-600',
+    'Jordan': 'bg-teal-600',
+    'France': 'bg-blue-600',
+    'Germany': 'bg-yellow-600',
+    'Russia': 'bg-blue-700',
+    'Bangladesh': 'bg-emerald-800',
+    'Philippines': 'bg-blue-500',
+    'Unspecified': 'bg-slate-400',
+  };
+
+  const defaultNationColors = ['bg-indigo-500', 'bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500', 'bg-rose-500', 'bg-teal-500'];
+
+  const nationalities = Object.values(nationalityStats).map((stat, idx) => {
+    const rate = stat.leads > 0 ? (stat.won / stat.leads) * 100 : 0;
+    return {
+      nationality: stat.displayName,
+      leads: stat.leads,
+      won: stat.won,
+      conversionRate: `${rate.toFixed(1)}%`,
+      revenue: stat.revenue,
+      color: nationColors[stat.displayName] || defaultNationColors[idx % defaultNationColors.length],
+    };
+  });
+
+  nationalities.sort((a, b) => b.leads - a.leads);
+
   const pipelines = rawPipelines.map((p) => ({
     id: p.id,
     name: p.name,
@@ -767,6 +841,7 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     pipelines,
     pipelineStages,
     leadSources,
+    nationalities,
   };
 
   // Cache response for 15 seconds
