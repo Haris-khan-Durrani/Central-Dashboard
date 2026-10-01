@@ -896,10 +896,78 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
     const fromContactJson = checkJson(opp.contact?.customFields);
     if (fromContactJson) return fromContactJson;
 
-    // Smart fallback: Phone country code
-    const phone = opp.contact?.phone || null;
-    const countryFromPhone = inferCountryFromPhone(phone);
-    if (countryFromPhone) return countryFromPhone;
+    // Smart fallback: Phone country code (from contact.phone, opp.phone, or deal name!)
+    const possiblePhones = [
+      opp.contact?.phone,
+      (opp as any).phone,
+      (opp as any).contactPhone,
+      ...(opp.name ? opp.name.match(/\+?[0-9]{8,15}/g) || [] : []),
+      ...(opp.source ? opp.source.match(/\+?[0-9]{8,15}/g) || [] : []),
+    ];
+
+    for (const p of possiblePhones) {
+      if (p) {
+        const country = inferCountryFromPhone(p);
+        if (country) return country;
+      }
+    }
+
+    // Keyword detection in deal name, contact name, or lead source
+    const textToScan = `${opp.name || ''} ${opp.contact?.firstName || ''} ${opp.contact?.lastName || ''} ${opp.source || ''}`.toLowerCase();
+    if (textToScan.includes('uae') || textToScan.includes('dubai') || textToScan.includes('emirates') || textToScan.includes('emirati') || textToScan.includes('abu dhabi')) {
+      return 'United Arab Emirates';
+    }
+    if (textToScan.includes('uk') || textToScan.includes('british') || textToScan.includes('britain') || textToScan.includes('england') || textToScan.includes('london')) {
+      return 'United Kingdom';
+    }
+    if (textToScan.includes('india') || textToScan.includes('indian')) {
+      return 'India';
+    }
+    if (textToScan.includes('pakistan') || textToScan.includes('pakistani')) {
+      return 'Pakistan';
+    }
+    if (textToScan.includes('saudi') || textToScan.includes('ksa') || textToScan.includes('riyadh')) {
+      return 'Saudi Arabia';
+    }
+    if (textToScan.includes('qatar') || textToScan.includes('qatari') || textToScan.includes('doha')) {
+      return 'Qatar';
+    }
+    if (textToScan.includes('kuwait')) {
+      return 'Kuwait';
+    }
+    if (textToScan.includes('oman')) {
+      return 'Oman';
+    }
+    if (textToScan.includes('bahrain')) {
+      return 'Bahrain';
+    }
+    if (textToScan.includes('egypt') || textToScan.includes('egyptian') || textToScan.includes('cairo')) {
+      return 'Egypt';
+    }
+    if (textToScan.includes('russia') || textToScan.includes('russian') || textToScan.includes('moscow')) {
+      return 'Russia';
+    }
+    if (textToScan.includes('france') || textToScan.includes('french') || textToScan.includes('paris')) {
+      return 'France';
+    }
+    if (textToScan.includes('germany') || textToScan.includes('german') || textToScan.includes('berlin')) {
+      return 'Germany';
+    }
+    if (textToScan.includes('bangladesh') || textToScan.includes('bangladeshi') || textToScan.includes('joynal') || textToScan.includes('prodip')) {
+      return 'Bangladesh';
+    }
+    if (textToScan.includes('philippines') || textToScan.includes('filipino')) {
+      return 'Philippines';
+    }
+    if (textToScan.includes('usa') || textToScan.includes('america') || textToScan.includes('american')) {
+      return 'United States';
+    }
+    if (textToScan.includes('canada') || textToScan.includes('canadian')) {
+      return 'Canada';
+    }
+    if (textToScan.includes('australia') || textToScan.includes('australian')) {
+      return 'Australia';
+    }
 
     return 'Unspecified';
   }

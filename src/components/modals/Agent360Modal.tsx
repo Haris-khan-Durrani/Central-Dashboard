@@ -6,7 +6,6 @@ import {
   GitMerge,
   Download,
   Calendar,
-  Layers,
   Award,
   Clock,
   CheckCircle2,
@@ -14,7 +13,6 @@ import {
   Loader2,
   Printer,
   Search,
-  Users,
   Briefcase,
   ListTodo,
   ExternalLink,
@@ -25,8 +23,7 @@ import {
   MapPin,
   CalendarDays,
   Globe,
-  Tag,
-  Filter,
+  HelpCircle,
 } from 'lucide-react';
 import { AgentData } from '../dashboard/AgentCardsGrid';
 
@@ -55,11 +52,11 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 const SEGREGATION_OPTIONS = [
-  { value: 'contact.nationality', label: '🌍 Nationality ({{contact.nationality}})' },
-  { value: 'source', label: '🏷️ Lead Source ({{contact.source}})' },
-  { value: 'campaign', label: '🎯 Campaign ({{contact.campaign}})' },
-  { value: 'stage', label: '💼 Pipeline Stage' },
-  { value: 'custom_input', label: '✏️ Custom Field Key...' },
+  { value: 'contact.nationality', label: 'Nationality' },
+  { value: 'source', label: 'Lead Source' },
+  { value: 'campaign', label: 'Campaign' },
+  { value: 'stage', label: 'Pipeline Stage' },
+  { value: 'custom_input', label: 'Custom Field...' },
 ];
 
 export default function Agent360Modal({
@@ -84,7 +81,7 @@ export default function Agent360Modal({
   const [customEnd, setCustomEnd] = useState<string>('');
   const [isApplyingCustom, setIsApplyingCustom] = useState<boolean>(false);
 
-  // Custom field segregation state (Default: contact.nationality)
+  // Custom field segregation state (Default: Nationality)
   const [segregationOption, setSegregationOption] = useState<string>('contact.nationality');
   const [customFieldKey, setCustomFieldKey] = useState<string>('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
@@ -193,6 +190,8 @@ export default function Agent360Modal({
     totalCategorized: 0,
   };
 
+  const cleanSegLabel = segregation.fieldLabel || 'Nationality';
+
   const stageBreakdown = reportData?.stageBreakdown || agent.stageBreakdown || {};
   const stageEntries = Object.entries(stageBreakdown as Record<string, number>).sort(
     ([, a], [, b]) => b - a
@@ -218,7 +217,7 @@ export default function Agent360Modal({
       const matchName = (d.name || '').toLowerCase().includes(q);
       const matchContact = (d.contactName || '').toLowerCase().includes(q);
       const matchStage = (d.stageName || '').toLowerCase().includes(q);
-      const matchCat = (d.customFieldValue || '').toLowerCase().includes(q);
+      const matchCat = (d.customFieldValue || d.nationality || '').toLowerCase().includes(q);
       return matchName || matchContact || matchStage || matchCat;
     }
     return true;
@@ -245,7 +244,7 @@ export default function Agent360Modal({
         ['Profile', 'Email', reportData?.user?.email || agent.email || 'N/A'],
         ['Filter', 'Date Range', rangeLabel],
         ['Filter', 'Date Basis', basisLabel],
-        ['Filter', 'Auto-Segregation Field', segregation.fieldLabel || 'Nationality'],
+        ['Filter', 'Auto-Segregation Field', cleanSegLabel],
         ['KPIs', 'Won Deals', metrics.won],
         ['KPIs', 'Revenue Generated', `${activeCurrency} ${metrics.revenue}`],
         ['KPIs', 'Leads Received', metrics.leads],
@@ -258,9 +257,9 @@ export default function Agent360Modal({
         ['Tasks', 'Pending Follow-ups', metrics.tasksPending],
         ['Tasks', 'Overdue Tasks', metrics.tasksOverdue],
         ['', '', ''],
-        [`Segregation: ${segregation.fieldLabel}`, 'Category / Value', 'Leads', 'Won Deals', 'Revenue', 'Conversion'],
+        [`Segregation: ${cleanSegLabel}`, 'Category', 'Leads', 'Won Deals', 'Revenue', 'Conversion'],
         ...(segregation.items || []).map((item: any) => [
-          `Segregation: ${segregation.fieldLabel}`,
+          `Segregation: ${cleanSegLabel}`,
           item.value,
           item.leads,
           item.won,
@@ -271,7 +270,7 @@ export default function Agent360Modal({
         ['Pipeline Breakdown', 'Stage Name', 'Deals Count'],
         ...stageEntries.map(([stage, count]) => ['Pipeline Breakdown', stage, count]),
         ['', '', ''],
-        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', 'Won Date', segregation.fieldLabel || 'Nationality', 'Source'],
+        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', 'Won Date', cleanSegLabel, 'Source'],
         ...deals.map((d: any) => [
           'Deal',
           d.name || 'Untitled',
@@ -306,13 +305,12 @@ export default function Agent360Modal({
     }
   };
 
-  // PDF Report Generator (Triggers clean printable executive PDF with Segregation Breakdown)
+  // PDF Report Generator (Executive layout, spans full A4 width, crisp high-contrast print styling)
   const handleDownloadPdf = () => {
     setIsGeneratingPdf(true);
     try {
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
       const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
-      const segLabel = segregation.fieldLabel || 'Nationality';
       const generatedAt = new Date().toLocaleString();
 
       const htmlContent = `
@@ -320,45 +318,50 @@ export default function Agent360Modal({
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Sales Audit & 360 Report - ${agent.name}</title>
+  <title>Sales Audit Report - ${agent.name}</title>
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm;
+      margin: 12mm 15mm 12mm 15mm;
     }
-    * {
+    *, *:before, *:after {
       box-sizing: border-box;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      color: #0f172a;
+    html, body {
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
       background: #ffffff;
-      margin: 0;
-      padding: 0;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 11px;
       line-height: 1.4;
+    }
+    .report-wrap {
+      width: 100% !important;
+      max-width: 100% !important;
     }
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid #2563eb;
-      padding-bottom: 12px;
-      margin-bottom: 14px;
+      align-items: flex-start;
+      border-bottom: 2.5px solid #1e3a8a;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
     }
     .title-block h1 {
-      margin: 0 0 4px 0;
-      font-size: 18px;
+      margin: 0 0 3px 0;
+      font-size: 17px;
       font-weight: 800;
       color: #1e3a8a;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.3px;
     }
     .title-block p {
       margin: 0;
-      font-size: 11px;
-      color: #64748b;
+      font-size: 10.5px;
+      color: #475569;
     }
     .badge-bar {
       display: flex;
@@ -367,23 +370,23 @@ export default function Agent360Modal({
     }
     .badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 8.5px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
-    .badge-blue { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-    .badge-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .badge-purple { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+    .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+    .badge-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
 
     .agent-card {
       background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      border: 1.5px solid #cbd5e1;
       border-radius: 8px;
       padding: 10px 14px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -391,13 +394,13 @@ export default function Agent360Modal({
     .agent-meta h2 {
       margin: 0 0 2px 0;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 800;
       color: #0f172a;
     }
     .agent-meta p {
       margin: 0;
       font-size: 10px;
-      color: #64748b;
+      color: #475569;
     }
 
     .kpi-grid {
@@ -405,238 +408,241 @@ export default function Agent360Modal({
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
       margin-bottom: 14px;
+      width: 100%;
     }
     .kpi-card {
-      border: 1px solid #e2e8f0;
+      border: 1.5px solid #cbd5e1;
       border-radius: 8px;
       padding: 8px 10px;
       background: #ffffff;
     }
-    .kpi-label { font-size: 9px; font-weight: 600; color: #64748b; text-transform: uppercase; }
-    .kpi-value { font-size: 18px; font-weight: 800; color: #0f172a; margin: 4px 0 2px 0; }
-    .kpi-sub { font-size: 9px; font-weight: 600; color: #2563eb; }
+    .kpi-label { font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase; }
+    .kpi-value { font-size: 17px; font-weight: 900; color: #0f172a; margin: 3px 0 2px 0; }
+    .kpi-sub { font-size: 9px; font-weight: 700; color: #2563eb; }
 
     .section-title {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
       color: #1e3a8a;
-      letter-spacing: 0.5px;
-      margin: 12px 0 6px 0;
-      border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 4px;
+      letter-spacing: 0.4px;
+      margin: 12px 0 5px 0;
+      border-bottom: 1.5px solid #cbd5e1;
+      padding-bottom: 3px;
     }
 
     table {
-      width: 100%;
+      width: 100% !important;
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 9.5px;
       margin-bottom: 12px;
     }
     th {
       background: #f1f5f9;
-      color: #475569;
+      color: #1e293b;
       text-align: left;
-      padding: 5px 8px;
-      font-weight: 700;
-      border-bottom: 1px solid #cbd5e1;
+      padding: 5px 7px;
+      font-weight: 800;
+      border: 1px solid #cbd5e1;
     }
     td {
-      padding: 5px 8px;
-      border-bottom: 1px solid #f1f5f9;
-      color: #1e293b;
+      padding: 5px 7px;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
     }
-    tr:nth-child(even) td { background: #fafafa; }
+    tr:nth-child(even) td { background: #f8fafc; }
 
-    .status-won { color: #166534; font-weight: 700; background: #dcfce7; padding: 1px 6px; border-radius: 4px; }
-    .status-lost { color: #991b1b; font-weight: 700; background: #fee2e2; padding: 1px 6px; border-radius: 4px; }
-    .status-open { color: #1e40af; font-weight: 700; background: #dbeafe; padding: 1px 6px; border-radius: 4px; }
+    .status-won { color: #15803d; font-weight: 800; background: #dcfce7; padding: 1px 5px; border-radius: 3px; border: 1px solid #bbf7d0; }
+    .status-lost { color: #b91c1c; font-weight: 800; background: #fee2e2; padding: 1px 5px; border-radius: 3px; border: 1px solid #fecaca; }
+    .status-open { color: #1d4ed8; font-weight: 800; background: #dbeafe; padding: 1px 5px; border-radius: 3px; border: 1px solid #bfdbfe; }
 
     .footer {
-      margin-top: 18px;
-      padding-top: 8px;
-      border-top: 1px solid #e2e8f0;
+      margin-top: 14px;
+      padding-top: 6px;
+      border-top: 1px solid #cbd5e1;
       display: flex;
       justify-content: space-between;
-      font-size: 9px;
-      color: #94a3b8;
+      font-size: 8.5px;
+      color: #64748b;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="title-block">
-      <h1>360° SALES PERFORMANCE AUDIT REPORT</h1>
-      <p>GoHighLevel Intelligence Engine · ${reportData?.location?.name || 'Sales Department'}</p>
-      <div class="badge-bar">
-        <span class="badge badge-blue">SCOPE: ${rangeLabel.toUpperCase()}</span>
-        <span class="badge badge-green">BASIS: ${basisLabel.toUpperCase()}</span>
-        <span class="badge badge-purple">SEGREGATION: ${segLabel.toUpperCase()}</span>
+  <div class="report-wrap">
+    <div class="header">
+      <div class="title-block">
+        <h1>360° SALES PERFORMANCE AUDIT REPORT</h1>
+        <p>GoHighLevel Intelligence Engine · ${reportData?.location?.name || 'Sales Department'}</p>
+        <div class="badge-bar">
+          <span class="badge badge-blue">SCOPE: ${rangeLabel.toUpperCase()}</span>
+          <span class="badge badge-green">BASIS: ${basisLabel.toUpperCase()}</span>
+          <span class="badge badge-purple">BREAKDOWN: ${cleanSegLabel.toUpperCase()}</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 10px; font-weight: 800; color: #0f172a;">EXECUTIVE SUMMARY</div>
+        <div style="font-size: 9px; color: #475569;">Generated: ${generatedAt}</div>
       </div>
     </div>
-    <div style="text-align: right;">
-      <div style="font-size: 10px; font-weight: 700; color: #0f172a;">EXECUTIVE SUMMARY</div>
-      <div style="font-size: 9px; color: #64748b;">Generated: ${generatedAt}</div>
-    </div>
-  </div>
 
-  <div class="agent-card">
-    <div class="agent-meta">
-      <h2>${agent.name}</h2>
-      <p>${agent.role} · ${reportData?.user?.email || agent.email || 'Sales Consultant'}</p>
+    <div class="agent-card">
+      <div class="agent-meta">
+        <h2>${agent.name}</h2>
+        <p>${agent.role} · ${reportData?.user?.email || agent.email || 'Sales Consultant'}</p>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 9px; color: #475569; text-transform: uppercase; font-weight: 700;">Target Goal</div>
+        <div style="font-size: 13px; font-weight: 900; color: #0f172a;">${formatCurrency(metrics.targetRevenue)}</div>
+        <div style="font-size: 9px; color: #15803d; font-weight: 800;">${metrics.targetProgress}% Achieved</div>
+      </div>
     </div>
-    <div style="text-align: right;">
-      <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Revenue Target</div>
-      <div style="font-size: 13px; font-weight: 800; color: #0f172a;">${formatCurrency(metrics.targetRevenue)}</div>
-      <div style="font-size: 9px; color: #16a34a; font-weight: 700;">${metrics.targetProgress}% Achieved</div>
-    </div>
-  </div>
 
-  <div class="kpi-grid">
-    <div class="kpi-card" style="border-left: 3px solid #16a34a;">
-      <div class="kpi-label">Deals Won</div>
-      <div class="kpi-value" style="color: #16a34a;">${metrics.won}</div>
-      <div class="kpi-sub" style="color: #16a34a;">${formatCurrency(metrics.revenue)} Won</div>
+    <div class="kpi-grid">
+      <div class="kpi-card" style="border-top: 3px solid #16a34a;">
+        <div class="kpi-label">Deals Won</div>
+        <div class="kpi-value" style="color: #15803d;">${metrics.won}</div>
+        <div class="kpi-sub" style="color: #15803d;">${formatCurrency(metrics.revenue)} Won</div>
+      </div>
+      <div class="kpi-card" style="border-top: 3px solid #2563eb;">
+        <div class="kpi-label">Leads Handled</div>
+        <div class="kpi-value" style="color: #1d4ed8;">${metrics.leads}</div>
+        <div class="kpi-sub">${metrics.worked} Active (${workedRate}%)</div>
+      </div>
+      <div class="kpi-card" style="border-top: 3px solid #7e22ce;">
+        <div class="kpi-label">Conversion Rate</div>
+        <div class="kpi-value" style="color: #7e22ce;">${metrics.conversion}</div>
+        <div class="kpi-sub">Won / Leads Ratio</div>
+      </div>
+      <div class="kpi-card" style="border-top: 3px solid #0891b2;">
+        <div class="kpi-label">Tasks Due / Overdue</div>
+        <div class="kpi-value">${metrics.tasksToday} / <span style="color: ${metrics.tasksOverdue > 0 ? '#b91c1c' : '#15803d'};">${metrics.tasksOverdue}</span></div>
+        <div class="kpi-sub">${metrics.tasksPending} Pending Tasks</div>
+      </div>
     </div>
-    <div class="kpi-card" style="border-left: 3px solid #2563eb;">
-      <div class="kpi-label">Leads Handled</div>
-      <div class="kpi-value" style="color: #2563eb;">${metrics.leads}</div>
-      <div class="kpi-sub">${metrics.worked} Active (${workedRate}%)</div>
-    </div>
-    <div class="kpi-card" style="border-left: 3px solid #8b5cf6;">
-      <div class="kpi-label">Conversion Rate</div>
-      <div class="kpi-value" style="color: #8b5cf6;">${metrics.conversion}</div>
-      <div class="kpi-sub">Won / Leads</div>
-    </div>
-    <div class="kpi-card" style="border-left: 3px solid #0891b2;">
-      <div class="kpi-label">Tasks Due / Overdue</div>
-      <div class="kpi-value">${metrics.tasksToday} / <span style="color: ${metrics.tasksOverdue > 0 ? '#dc2626' : '#16a34a'};">${metrics.tasksOverdue}</span></div>
-      <div class="kpi-sub">${metrics.tasksPending} Pending Follow-ups</div>
-    </div>
-  </div>
 
-  <!-- Auto-Segregation Table -->
-  <div class="section-title">Data Segregation: ${segLabel} (${segregation.items?.length || 0} Categories)</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 35%;">${segLabel}</th>
-        <th style="width: 15%; text-align: center;">Leads</th>
-        <th style="width: 15%; text-align: center;">Won Deals</th>
-        <th style="width: 20%; text-align: right;">Won Revenue</th>
-        <th style="width: 15%; text-align: right;">Conversion</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${
-        segregation.items && segregation.items.length > 0
-          ? segregation.items
-              .slice(0, 15)
-              .map(
-                (item: any) => `
+    <!-- Auto-Segregation Table -->
+    <div class="section-title">Client Breakdown by ${cleanSegLabel} (${segregation.items?.length || 0} Categories)</div>
+    <table>
+      <thead>
         <tr>
-          <td><strong>${item.value || 'Unspecified'}</strong></td>
-          <td style="text-align: center;">${item.leads}</td>
-          <td style="text-align: center; color: #166534; font-weight: 700;">${item.won}</td>
-          <td style="text-align: right; font-weight: 700;">${formatCurrency(item.revenue)}</td>
-          <td style="text-align: right; color: #2563eb; font-weight: 600;">${item.conversion}</td>
+          <th style="width: 35%;">${cleanSegLabel}</th>
+          <th style="width: 15%; text-align: center;">Total Leads</th>
+          <th style="width: 15%; text-align: center;">Won Deals</th>
+          <th style="width: 20%; text-align: right;">Won Revenue</th>
+          <th style="width: 15%; text-align: right;">Win Rate</th>
         </tr>
-      `
-              )
-              .join('')
-          : `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 12px;">No segregation data available.</td></tr>`
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        ${
+          segregation.items && segregation.items.length > 0
+            ? segregation.items
+                .slice(0, 15)
+                .map(
+                  (item: any) => `
+          <tr>
+            <td><strong>${item.value || 'Unspecified'}</strong></td>
+            <td style="text-align: center;">${item.leads}</td>
+            <td style="text-align: center; color: #15803d; font-weight: 800;">${item.won}</td>
+            <td style="text-align: right; font-weight: 800;">${formatCurrency(item.revenue)}</td>
+            <td style="text-align: right; color: #1d4ed8; font-weight: 700;">${item.conversion}</td>
+          </tr>
+        `
+                )
+                .join('')
+            : `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 10px;">No categorization data available.</td></tr>`
+        }
+      </tbody>
+    </table>
 
-  <!-- Deals Table -->
-  <div class="section-title">Deals & Opportunities Audit (${deals.length} Recorded in Period)</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 22%;">Deal / Opportunity</th>
-        <th style="width: 18%;">Client Contact</th>
-        <th style="width: 15%;">${segLabel}</th>
-        <th style="width: 15%;">Stage</th>
-        <th style="width: 10%;">Status</th>
-        <th style="width: 10%; text-align: right;">Value</th>
-        <th style="width: 10%; text-align: right;">${dateBasis === 'won' ? 'Won Date' : 'Created Date'}</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${
-        deals.length > 0
-          ? deals
-              .slice(0, 30)
-              .map(
-                (d: any) => `
+    <!-- Deals Table -->
+    <div class="section-title">Deals & Opportunities Audit (${deals.length} Recorded in Period)</div>
+    <table>
+      <thead>
         <tr>
-          <td><strong>${d.name || 'Untitled Deal'}</strong></td>
-          <td>${d.contactName || d.contactPhone || 'Direct Client'}</td>
-          <td><span style="font-weight: 600; color: #4338ca;">${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
-          <td>${d.stageName || 'Pipeline Stage'}</td>
-          <td><span class="status-${(d.status || 'open').toLowerCase()}">${(d.status || 'open').toUpperCase()}</span></td>
-          <td style="text-align: right; font-weight: 700;">${formatCurrency(d.monetaryValue || 0)}</td>
-          <td style="text-align: right; color: #64748b;">${(d.wonAt || d.createdAt || '').slice(0, 10)}</td>
+          <th style="width: 24%;">Deal / Client</th>
+          <th style="width: 18%;">Contact Info</th>
+          <th style="width: 16%;">${cleanSegLabel}</th>
+          <th style="width: 14%;">Stage</th>
+          <th style="width: 9%;">Status</th>
+          <th style="width: 10%; text-align: right;">Value</th>
+          <th style="width: 9%; text-align: right;">${dateBasis === 'won' ? 'Won Date' : 'Created Date'}</th>
         </tr>
-      `
-              )
-              .join('')
-          : `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 16px;">No deals found for the selected ${basisLabel}.</td></tr>`
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        ${
+          deals.length > 0
+            ? deals
+                .slice(0, 30)
+                .map(
+                  (d: any) => `
+          <tr>
+            <td><strong>${d.name || 'Untitled Deal'}</strong></td>
+            <td>${d.contactName || d.contactPhone || 'Direct Client'}</td>
+            <td><span style="font-weight: 700; color: #4338ca;">${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
+            <td>${d.stageName || 'Pipeline Stage'}</td>
+            <td><span class="status-${(d.status || 'open').toLowerCase()}">${(d.status || 'open').toUpperCase()}</span></td>
+            <td style="text-align: right; font-weight: 800;">${formatCurrency(d.monetaryValue || 0)}</td>
+            <td style="text-align: right; color: #475569;">${(d.wonAt || d.createdAt || '').slice(0, 10)}</td>
+          </tr>
+        `
+                )
+                .join('')
+            : `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 14px;">No deals found for the selected ${basisLabel}.</td></tr>`
+        }
+      </tbody>
+    </table>
 
-  ${
-    appointments.length > 0
-      ? `
-  <div class="section-title">Client Meetings & Appointments (${appointments.length} Recent / Scheduled)</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 30%;">Meeting Title</th>
-        <th style="width: 25%;">Client</th>
-        <th style="width: 15%;">Type</th>
-        <th style="width: 15%;">Status</th>
-        <th style="width: 15%; text-align: right;">Date & Time</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${appointments
-        .slice(0, 10)
-        .map(
-          (a: any) => `
+    ${
+      appointments.length > 0
+        ? `
+    <div class="section-title">Client Meetings & Appointments (${appointments.length} Consultations)</div>
+    <table>
+      <thead>
         <tr>
-          <td><strong>${a.title || 'Client Consultation'}</strong></td>
-          <td>${a.clientName || 'Client'}</td>
-          <td style="text-transform: capitalize;">${a.meetingLocationType || 'Meeting'}</td>
-          <td style="text-transform: capitalize;">${a.status || 'Confirmed'}</td>
-          <td style="text-align: right; color: #64748b;">${new Date(a.startTime).toLocaleDateString()} ${new Date(a.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+          <th style="width: 32%;">Meeting Title</th>
+          <th style="width: 26%;">Client</th>
+          <th style="width: 14%;">Mode</th>
+          <th style="width: 14%;">Status</th>
+          <th style="width: 14%; text-align: right;">Date & Time</th>
         </tr>
-      `
-        )
-        .join('')}
-    </tbody>
-  </table>
-  `
-      : ''
-  }
+      </thead>
+      <tbody>
+        ${appointments
+          .slice(0, 10)
+          .map(
+            (a: any) => `
+          <tr>
+            <td><strong>${a.title || 'Client Consultation'}</strong></td>
+            <td>${a.clientName || 'Client'}</td>
+            <td style="text-transform: capitalize;">${a.meetingLocationType || 'Meeting'}</td>
+            <td style="text-transform: capitalize;">${a.status || 'Confirmed'}</td>
+            <td style="text-align: right; color: #475569;">${new Date(a.startTime).toLocaleDateString()} ${new Date(a.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+    `
+        : ''
+    }
 
-  <div class="footer">
-    <div>CONFIDENTIAL SALES AUDIT REPORT · GOHIGHLEVEL ENTERPRISE CRM DASHBOARD</div>
-    <div>Page 1 · End of 360° Summary Report</div>
+    <div class="footer">
+      <div>CONFIDENTIAL SALES AUDIT REPORT · GOHIGHLEVEL ENTERPRISE CRM DASHBOARD</div>
+      <div>Page 1 of 1 · Executive 360° Summary Report</div>
+    </div>
   </div>
 </body>
 </html>
       `;
 
-      // Use hidden iframe to trigger print dialog without pop-up blocking
+      // Use a full-desktop width hidden iframe so the browser print engine formats to full 100% A4 width
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.left = '-99999px';
+      iframe.style.top = '0';
+      iframe.style.width = '1200px';
+      iframe.style.height = '1600px';
       iframe.style.border = '0';
       document.body.appendChild(iframe);
 
@@ -658,9 +664,9 @@ export default function Agent360Modal({
                 document.body.removeChild(iframe);
               }
               setIsGeneratingPdf(false);
-            }, 2500);
+            }, 3000);
           }
-        }, 400);
+        }, 500);
       }
     } catch (err: any) {
       setIsGeneratingPdf(false);
@@ -669,12 +675,13 @@ export default function Agent360Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-4xl rounded-3xl p-5 md:p-7 border border-gray-200 shadow-2xl relative my-6 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-6 overflow-y-auto animate-in fade-in duration-200">
+      {/* Spacious Modal Container (max-w-6xl for premium executive feel) */}
+      <div className="bg-white w-full max-w-6xl rounded-3xl p-6 md:p-8 border border-gray-200 shadow-2xl relative my-6 max-h-[92vh] flex flex-col">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900 transition-all hover:bg-gray-200 active:scale-95 z-10"
+          className="absolute top-6 right-6 p-2 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900 transition-all hover:bg-gray-200 active:scale-95 z-10"
           aria-label="Close modal"
         >
           <X className="w-5 h-5" />
@@ -682,47 +689,47 @@ export default function Agent360Modal({
 
         {/* Top Header: Agent Info & 360 Badge */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-blue-500/20 shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center text-2xl font-black shadow-md shadow-blue-500/20 shrink-0">
               {initials}
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">{agent.name}</h2>
-                <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight">{agent.name}</h2>
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-extrabold rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   LIVE 360° REPORT
                 </span>
                 {isLoading && (
-                  <span className="flex items-center gap-1 text-[11px] text-blue-600 font-semibold animate-pulse">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...
+                  <span className="flex items-center gap-1.5 text-xs text-blue-600 font-bold animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating Data...
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {agent.role} · {reportData?.location?.name || 'Sales Department'}
+              <p className="text-xs text-gray-500 mt-1">
+                {agent.role} · {reportData?.location?.name || 'Sales Department'} · {reportData?.user?.email || agent.email || ''}
               </p>
             </div>
           </div>
 
           {/* Quick Lifetime Summary Badge */}
           {lifetime && (
-            <div className="text-xs bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2 text-slate-700 flex flex-col justify-center sm:text-right shrink-0">
+            <div className="text-xs bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 flex flex-col justify-center sm:text-right shrink-0 shadow-sm">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">All-Time Lifetime</span>
-              <span className="font-extrabold text-slate-900">
+              <span className="font-black text-slate-900 text-sm">
                 {lifetime.won} Won / {lifetime.leads} Leads ({lifetime.conversion})
               </span>
-              <span className="text-[11px] text-emerald-600 font-bold">{formatCurrency(lifetime.revenue)}</span>
+              <span className="text-xs text-emerald-600 font-extrabold">{formatCurrency(lifetime.revenue)}</span>
             </div>
           )}
         </div>
 
-        {/* Interactive Filter Toolbar: Won Date Basis, Date Range & Custom Field Segregation */}
-        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-200/80 my-4 flex flex-col gap-3 shrink-0">
+        {/* Interactive Filter Toolbar: Clean, No Shortcodes */}
+        <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200/80 my-4 flex flex-col gap-3 shrink-0">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" /> Filter Basis:
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-4 h-4 text-blue-600" /> Filter Basis:
               </span>
 
               {/* Won Date vs Created Date Toggle */}
@@ -730,12 +737,12 @@ export default function Agent360Modal({
                 <button
                   type="button"
                   onClick={() => setDateBasis('won')}
-                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                     dateBasis === 'won'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
-                  title="Filter metrics & deals by Won Date (when deals closed)"
+                  title="Filter deals by Won Date (when deals closed)"
                 >
                   <Award className="w-3.5 h-3.5" />
                   <span>🏆 Won Date</span>
@@ -743,12 +750,12 @@ export default function Agent360Modal({
                 <button
                   type="button"
                   onClick={() => setDateBasis('created')}
-                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                     dateBasis === 'created'
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
-                  title="Filter metrics & deals by Created Date (when leads entered)"
+                  title="Filter deals by Created Date (when leads entered)"
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   <span>📅 Created Date</span>
@@ -760,7 +767,7 @@ export default function Agent360Modal({
                 <select
                   value={dateRange}
                   onChange={(e) => setDateRange(e.target.value)}
-                  className="appearance-none bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl pl-3 pr-8 py-1.5 shadow-sm hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="appearance-none bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl pl-3.5 pr-8 py-2 shadow-sm hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   {DATE_RANGE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -768,7 +775,7 @@ export default function Agent360Modal({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
@@ -779,19 +786,19 @@ export default function Agent360Modal({
                   type="date"
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <span className="text-gray-400 font-medium">to</span>
                 <input
                   type="date"
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button
                   type="button"
                   onClick={handleApplyCustomRange}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
                 >
                   Apply
                 </button>
@@ -799,14 +806,14 @@ export default function Agent360Modal({
             )}
           </div>
 
-          {/* Secondary Row: Auto-Segregation by Custom Field / Nationality */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
-            <div className="flex items-center gap-2 flex-wrap">
+          {/* Secondary Row: Auto-Segregation by Nationality / Custom Field */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200/70 text-xs">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="font-bold text-indigo-900 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-indigo-600" /> Auto-Segregate Data:
+                <Globe className="w-4 h-4 text-indigo-600" /> Auto-Segregate Data:
               </span>
 
-              {/* Segregation Field Selector */}
+              {/* Segregation Field Selector without technical shortcodes */}
               <div className="relative inline-block">
                 <select
                   value={segregationOption}
@@ -814,7 +821,7 @@ export default function Agent360Modal({
                     setSegregationOption(e.target.value);
                     setSelectedCategoryFilter(null);
                   }}
-                  className="appearance-none bg-white border border-indigo-200 text-indigo-950 text-xs font-bold rounded-xl pl-3 pr-8 py-1 shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="appearance-none bg-white border border-indigo-200 text-indigo-950 text-xs font-bold rounded-xl pl-3.5 pr-8 py-1.5 shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   {SEGREGATION_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -822,7 +829,7 @@ export default function Agent360Modal({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-indigo-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-4 h-4 text-indigo-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
               {/* If Custom Key is selected, show custom text input */}
@@ -830,17 +837,17 @@ export default function Agent360Modal({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
-                    placeholder="e.g. {{contact.nationality}} or property_type"
+                    placeholder="Enter custom field (e.g. nationality, property_type)"
                     value={customFieldKey}
                     onChange={(e) => setCustomFieldKey(e.target.value)}
-                    className="border border-indigo-200 rounded-lg px-2.5 py-1 text-xs text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[200px]"
+                    className="border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[240px]"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      if (onToast) onToast(`Applied segregation by "${customFieldKey || 'Custom Field'}"`);
+                      if (onToast) onToast(`Applied breakdown by "${customFieldKey || 'Custom Field'}"`);
                     }}
-                    className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-bold text-[11px] shadow-sm hover:bg-indigo-700 transition-all"
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-indigo-700 transition-all"
                   >
                     Set
                   </button>
@@ -850,14 +857,14 @@ export default function Agent360Modal({
 
             {/* Active category filter pill indicator */}
             {selectedCategoryFilter && (
-              <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg text-indigo-800 text-[11px] font-semibold self-start sm:self-center">
-                <span>Filtered: <strong>{selectedCategoryFilter}</strong></span>
+              <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-lg text-indigo-800 text-xs font-semibold self-start sm:self-center">
+                <span>Filter: <strong>{selectedCategoryFilter}</strong></span>
                 <button
                   onClick={() => setSelectedCategoryFilter(null)}
                   className="p-0.5 hover:bg-indigo-200 rounded text-indigo-600"
                   title="Clear category filter"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -865,129 +872,129 @@ export default function Agent360Modal({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4 shrink-0 text-xs font-bold">
+        <div className="flex items-center gap-2 border-b border-gray-200 pb-2.5 mb-4 shrink-0 text-xs font-bold">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
               activeTab === 'overview'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            <GitMerge className="w-3.5 h-3.5" />
+            <GitMerge className="w-4 h-4" />
             <span>Overview & KPIs</span>
           </button>
           <button
             onClick={() => setActiveTab('deals')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
               activeTab === 'deals'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            <Briefcase className="w-3.5 h-3.5" />
+            <Briefcase className="w-4 h-4" />
             <span>Deals & Opportunities</span>
-            <span className="ml-1 px-1.5 py-0.2 bg-white text-gray-700 rounded-full text-[10px] border border-gray-200">
+            <span className="ml-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-xs border border-gray-200">
               {deals.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('meetings')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
               activeTab === 'meetings'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            <CalendarDays className="w-3.5 h-3.5" />
+            <CalendarDays className="w-4 h-4" />
             <span>Meetings & Calls</span>
-            <span className="ml-1 px-1.5 py-0.2 bg-white text-gray-700 rounded-full text-[10px] border border-gray-200">
+            <span className="ml-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-xs border border-gray-200">
               {appointments.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('tasks')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
               activeTab === 'tasks'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            <ListTodo className="w-3.5 h-3.5" />
+            <ListTodo className="w-4 h-4" />
             <span>Tasks</span>
-            <span className="ml-1 px-1.5 py-0.2 bg-white text-gray-700 rounded-full text-[10px] border border-gray-200">
+            <span className="ml-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-xs border border-gray-200">
               {tasks.length}
             </span>
           </button>
         </div>
 
         {/* Scrollable Tab Content Container */}
-        <div className="overflow-y-auto flex-1 pr-1 space-y-5">
+        <div className="overflow-y-auto flex-1 pr-1 space-y-6">
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {/* Top 4 KPI Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {/* Deals Won Card */}
-                <div className="bg-gradient-to-br from-emerald-50/70 to-white rounded-2xl p-4 border border-emerald-200/80 shadow-sm transition-all hover:border-emerald-300">
-                  <div className="text-[11px] text-emerald-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5 text-emerald-600" /> Deals Won
+                <div className="bg-gradient-to-br from-emerald-50/80 to-white rounded-2xl p-4 md:p-5 border border-emerald-200 shadow-sm transition-all hover:border-emerald-300">
+                  <div className="text-xs text-emerald-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-emerald-600" /> Deals Won
                   </div>
-                  <div className="text-3xl font-extrabold text-emerald-700 mt-1">{metrics.won}</div>
-                  <div className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                  <div className="text-3xl md:text-4xl font-black text-emerald-700 mt-1.5">{metrics.won}</div>
+                  <div className="text-xs text-emerald-800 font-bold mt-1">
                     {formatCurrency(metrics.revenue)}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">
+                  <div className="text-[11px] text-gray-400 mt-0.5">
                     {dateBasis === 'won' ? 'Won in selected period' : 'Won from period leads'}
                   </div>
                 </div>
 
                 {/* Leads Handled Card */}
-                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-200 transition-all hover:border-blue-300">
-                  <div className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Leads Received</div>
-                  <div className="text-3xl font-extrabold text-gray-900 mt-1">{metrics.leads}</div>
-                  <div className="text-[11px] text-blue-600 font-semibold mt-0.5">
+                <div className="bg-gray-50/90 rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm transition-all hover:border-blue-300">
+                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Leads Received</div>
+                  <div className="text-3xl md:text-4xl font-black text-gray-900 mt-1.5">{metrics.leads}</div>
+                  <div className="text-xs text-blue-600 font-bold mt-1">
                     {metrics.worked} Active ({workedRate}%)
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">Assigned to agent</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">Assigned to agent</div>
                 </div>
 
                 {/* Conversion Rate Card */}
-                <div className="bg-gradient-to-br from-violet-50/70 to-white rounded-2xl p-4 border border-violet-200/80 shadow-sm transition-all hover:border-violet-300">
-                  <div className="text-[11px] text-violet-800 font-bold uppercase tracking-wider">Conversion Rate</div>
-                  <div className="text-3xl font-extrabold text-violet-700 mt-1">{metrics.conversion}</div>
-                  <div className="text-[11px] text-violet-800 font-semibold mt-0.5">
+                <div className="bg-gradient-to-br from-violet-50/80 to-white rounded-2xl p-4 md:p-5 border border-violet-200 shadow-sm transition-all hover:border-violet-300">
+                  <div className="text-xs text-violet-800 font-bold uppercase tracking-wider">Conversion Rate</div>
+                  <div className="text-3xl md:text-4xl font-black text-violet-700 mt-1.5">{metrics.conversion}</div>
+                  <div className="text-xs text-violet-800 font-bold mt-1">
                     {metrics.won} won / {metrics.leads} leads
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">Overall effectiveness</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">Win conversion efficiency</div>
                 </div>
 
                 {/* Tasks & Health Card */}
-                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-200 transition-all hover:border-cyan-300">
-                  <div className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Follow-up Backlog</div>
-                  <div className="text-3xl font-extrabold text-gray-900 mt-1 flex items-center gap-2">
+                <div className="bg-gray-50/90 rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm transition-all hover:border-cyan-300">
+                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Follow-up Backlog</div>
+                  <div className="text-3xl md:text-4xl font-black text-gray-900 mt-1.5 flex items-center gap-2">
                     <span>{metrics.tasksToday}</span>
                     <span className="text-xs font-semibold text-gray-400">today</span>
                   </div>
-                  <div className="text-[11px] mt-0.5 flex items-center gap-1 font-semibold">
+                  <div className="text-xs mt-1 flex items-center gap-1 font-bold">
                     {metrics.tasksOverdue > 0 ? (
                       <span className="text-rose-600 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {metrics.tasksOverdue} overdue
+                        <AlertCircle className="w-3.5 h-3.5" /> {metrics.tasksOverdue} overdue
                       </span>
                     ) : (
                       <span className="text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> 0 overdue
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 0 overdue
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">{metrics.tasksPending} pending tasks</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">{metrics.tasksPending} pending tasks</div>
                 </div>
               </div>
 
               {/* Revenue Target Progress Bar */}
-              <div className="bg-gradient-to-r from-blue-50 via-white to-emerald-50/50 rounded-2xl p-4 border border-blue-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="bg-gradient-to-r from-blue-50 via-white to-emerald-50/60 rounded-2xl p-5 border border-blue-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
                     Revenue Target Performance ({dateBasis === 'won' ? 'Won in Period' : 'Period Revenue'})
                   </div>
                   <div className="text-2xl font-black text-gray-900">
@@ -996,7 +1003,7 @@ export default function Agent360Modal({
                       generated of {formatCurrency(metrics.targetRevenue)} goal
                     </span>
                   </div>
-                  <div className="w-64 max-w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-2">
+                  <div className="w-72 max-w-full bg-gray-200 rounded-full h-2.5 overflow-hidden mt-2">
                     <div
                       className="bg-emerald-500 h-full rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(100, metrics.targetProgress)}%` }}
@@ -1005,41 +1012,41 @@ export default function Agent360Modal({
                 </div>
 
                 <div className="sm:text-right shrink-0">
-                  <div className="text-base font-extrabold text-emerald-600 flex items-center sm:justify-end gap-1.5">
-                    <Award className="w-4 h-4" />
+                  <div className="text-lg font-black text-emerald-600 flex items-center sm:justify-end gap-1.5">
+                    <Award className="w-5 h-5" />
                     <span>{metrics.targetProgress}% of Target Goal</span>
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
+                  <div className="text-xs text-gray-500 mt-0.5">
                     {metrics.targetProgress >= 100
                       ? '🎯 Target achieved for this period!'
-                      : `${formatCurrency(Math.max(0, metrics.targetRevenue - metrics.revenue))} remaining`}
+                      : `${formatCurrency(Math.max(0, metrics.targetRevenue - metrics.revenue))} remaining to goal`}
                   </div>
                 </div>
               </div>
 
-              {/* AUTO-SEGREGATION BREAKDOWN PANEL (Nationality / Custom Field) */}
-              <div className="bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              {/* AUTO-SEGREGATION BREAKDOWN PANEL (Clean & Spacious) */}
+              <div className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 rounded-2xl p-5 border border-indigo-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5">
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-indigo-600" /> Auto-Segregation Breakdown: {segregation.fieldLabel || 'Nationality'}
+                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-indigo-600" /> Client Breakdown by {cleanSegLabel}
                     </h4>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      Segmented by {segregation.fieldKey || 'contact.nationality'} · Click any category to filter deals below
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Auto-segregated from client phone numbers & profile data · Click any card to filter deals
                     </p>
                   </div>
                   {selectedCategoryFilter && (
                     <button
                       onClick={() => setSelectedCategoryFilter(null)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline self-start sm:self-auto"
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-extrabold underline self-start sm:self-auto"
                     >
-                      Clear Category Filter
+                      Clear Filter ({selectedCategoryFilter})
                     </button>
                   )}
                 </div>
 
                 {segregation.items && segregation.items.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {segregation.items.map((item: any) => {
                       const isSelected = selectedCategoryFilter === item.value;
                       return (
@@ -1049,15 +1056,15 @@ export default function Agent360Modal({
                             setSelectedCategoryFilter(isSelected ? null : item.value);
                             setActiveTab('deals');
                           }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
                             isSelected
                               ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-[1.02]'
                               : 'bg-white text-gray-800 border-gray-200 hover:border-indigo-300 hover:shadow-sm'
                           }`}
                         >
-                          <div className="flex justify-between items-start gap-1">
+                          <div className="flex justify-between items-start gap-1.5">
                             <span
-                              className={`text-xs font-bold truncate max-w-[150px] ${
+                              className={`text-xs font-extrabold truncate max-w-[140px] ${
                                 isSelected ? 'text-white' : 'text-gray-900'
                               }`}
                               title={item.value}
@@ -1065,7 +1072,7 @@ export default function Agent360Modal({
                               {item.value}
                             </span>
                             <span
-                              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                              className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
                                 isSelected
                                   ? 'bg-indigo-700 text-white'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1075,18 +1082,18 @@ export default function Agent360Modal({
                             </span>
                           </div>
 
-                          <div className="mt-2 flex justify-between items-baseline text-[11px]">
+                          <div className="mt-2.5 flex justify-between items-baseline text-xs">
                             <span className={isSelected ? 'text-indigo-100' : 'text-gray-500'}>
                               {item.leads} {item.leads === 1 ? 'lead' : 'leads'} ({item.conversion})
                             </span>
-                            <span className={`font-extrabold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                            <span className={`font-black ${isSelected ? 'text-white' : 'text-gray-900'}`}>
                               {formatCurrency(item.revenue)}
                             </span>
                           </div>
 
                           {/* Progress bar of percentage */}
                           <div
-                            className={`w-full h-1.5 rounded-full mt-2 overflow-hidden ${
+                            className={`w-full h-1.5 rounded-full mt-2.5 overflow-hidden ${
                               isSelected ? 'bg-indigo-700' : 'bg-gray-100'
                             }`}
                           >
@@ -1112,10 +1119,10 @@ export default function Agent360Modal({
               {/* Side-by-Side: Pipeline Breakdown & Tasks Health */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Dynamic Pipeline Breakdown */}
-                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 flex flex-col justify-between">
+                <div className="bg-gray-50 rounded-2xl p-4 md:p-5 border border-gray-200 flex flex-col justify-between">
                   <div>
-                    <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <GitMerge className="w-3.5 h-3.5" /> Pipeline Stage Breakdown
+                    <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-3.5 flex items-center gap-2">
+                      <GitMerge className="w-4 h-4" /> Pipeline Stage Breakdown
                     </h4>
 
                     {stageEntries.length > 0 ? (
@@ -1126,7 +1133,7 @@ export default function Agent360Modal({
                           return (
                             <div key={stageName} className="space-y-1">
                               <div className="flex justify-between items-center">
-                                <span className="text-gray-700 font-medium truncate max-w-[170px]" title={stageName}>
+                                <span className="text-gray-700 font-medium truncate max-w-[200px]" title={stageName}>
                                   {stageName}
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -1154,24 +1161,24 @@ export default function Agent360Modal({
                     )}
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-gray-200 text-[11px] text-gray-500 flex justify-between">
+                  <div className="mt-3.5 pt-2.5 border-t border-gray-200 text-xs text-gray-500 flex justify-between">
                     <span>Total Deals Analyzed:</span>
                     <strong className="text-gray-900">{deals.length || metrics.leads}</strong>
                   </div>
                 </div>
 
                 {/* Tasks & Follow-up Health */}
-                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 flex flex-col justify-between">
+                <div className="bg-gray-50 rounded-2xl p-4 md:p-5 border border-gray-200 flex flex-col justify-between">
                   <div>
-                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Follow-up & Activity Health
+                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-3.5 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Follow-up & Activity Health
                     </h4>
 
-                    <div className="space-y-3 text-xs">
+                    <div className="space-y-3.5 text-xs">
                       <div className="flex justify-between items-center py-1.5 border-b border-gray-200">
                         <span className="text-gray-600">Tasks Due Today</span>
                         <span
-                          className={`font-bold px-2 py-0.5 rounded border ${
+                          className={`font-bold px-2.5 py-0.5 rounded border ${
                             metrics.tasksToday > 0
                               ? 'text-cyan-700 bg-cyan-50 border-cyan-200'
                               : 'text-gray-500 bg-gray-100 border-gray-200'
@@ -1183,7 +1190,7 @@ export default function Agent360Modal({
 
                       <div className="flex justify-between items-center py-1.5 border-b border-gray-200">
                         <span className="text-gray-600">Pending Follow-ups</span>
-                        <span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">
+                        <span className="font-bold text-gray-900 bg-white px-2.5 py-0.5 rounded border border-gray-200">
                           {metrics.tasksPending} Pending
                         </span>
                       </div>
@@ -1191,7 +1198,7 @@ export default function Agent360Modal({
                       <div className="flex justify-between items-center py-1.5 border-b border-gray-200">
                         <span className="text-gray-600">Overdue Tasks</span>
                         <span
-                          className={`font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${
+                          className={`font-bold px-2.5 py-0.5 rounded border flex items-center gap-1.5 ${
                             metrics.tasksOverdue > 0
                               ? 'text-rose-600 bg-rose-50 border-rose-200'
                               : 'text-emerald-600 bg-emerald-50 border-emerald-200'
@@ -1199,12 +1206,12 @@ export default function Agent360Modal({
                         >
                           {metrics.tasksOverdue > 0 ? (
                             <>
-                              <AlertCircle className="w-3 h-3" />
+                              <AlertCircle className="w-3.5 h-3.5" />
                               {metrics.tasksOverdue} Overdue
                             </>
                           ) : (
                             <>
-                              <CheckCircle2 className="w-3 h-3" />
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                               0 Overdue
                             </>
                           )}
@@ -1220,10 +1227,10 @@ export default function Agent360Modal({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-gray-200 text-[11px] text-gray-500 flex justify-between">
+                  <div className="mt-3.5 pt-2.5 border-t border-gray-200 text-xs text-gray-500 flex justify-between">
                     <span>Task Backlog Status:</span>
                     <span
-                      className={`font-semibold ${
+                      className={`font-bold ${
                         metrics.tasksOverdue > 0 ? 'text-rose-600' : 'text-emerald-600'
                       }`}
                     >
@@ -1237,48 +1244,48 @@ export default function Agent360Modal({
 
           {/* TAB 2: DEALS & OPPORTUNITIES */}
           {activeTab === 'deals' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* Search & Status Filters */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search deals, clients, stages, nationality..."
+                    placeholder={`Search deals, clients, stages, ${cleanSegLabel.toLowerCase()}...`}
                     value={dealSearch}
                     onChange={(e) => setDealSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   {/* Category Filter Dropdown if segregation items exist */}
                   {segregation.items && segregation.items.length > 0 && (
                     <div className="relative inline-block">
                       <select
                         value={selectedCategoryFilter || ''}
                         onChange={(e) => setSelectedCategoryFilter(e.target.value || null)}
-                        className="appearance-none bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold rounded-xl pl-2.5 pr-7 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        className="appearance-none bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold rounded-xl pl-3 pr-8 py-1.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       >
-                        <option value="">All {segregation.fieldLabel || 'Nationalities'}</option>
+                        <option value="">All {cleanSegLabel}</option>
                         {segregation.items.map((it: any) => (
                           <option key={it.value} value={it.value}>
                             {it.value} ({it.leads})
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-3 h-3 text-indigo-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <ChevronDown className="w-3.5 h-3.5 text-indigo-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   )}
 
                   <div className="flex items-center gap-1 text-xs font-semibold">
-                    <span className="text-gray-500 text-[11px]">Status:</span>
+                    <span className="text-gray-500 text-xs">Status:</span>
                     {(['all', 'won', 'open', 'lost'] as const).map((st) => (
                       <button
                         key={st}
                         type="button"
                         onClick={() => setDealStatusFilter(st)}
-                        className={`px-2.5 py-1 rounded-lg uppercase text-[10px] font-bold transition-all ${
+                        className={`px-3 py-1.5 rounded-lg uppercase text-[11px] font-bold transition-all ${
                           dealStatusFilter === st
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1293,17 +1300,17 @@ export default function Agent360Modal({
 
               {/* Deals Table */}
               <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[460px] overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-gray-500 font-bold sticky top-0 border-b border-gray-200">
+                    <thead className="bg-gray-50 text-gray-600 font-bold sticky top-0 border-b border-gray-200">
                       <tr>
-                        <th className="py-2.5 px-3">Deal / Opportunity</th>
-                        <th className="py-2.5 px-3">Client Contact</th>
-                        <th className="py-2.5 px-3">{segregation.fieldLabel || 'Nationality'}</th>
-                        <th className="py-2.5 px-3">Pipeline Stage</th>
-                        <th className="py-2.5 px-3">Status</th>
-                        <th className="py-2.5 px-3 text-right">Value</th>
-                        <th className="py-2.5 px-3 text-right">
+                        <th className="py-3 px-3.5">Deal / Opportunity</th>
+                        <th className="py-3 px-3.5">Client Contact</th>
+                        <th className="py-3 px-3.5">{cleanSegLabel}</th>
+                        <th className="py-3 px-3.5">Pipeline Stage</th>
+                        <th className="py-3 px-3.5">Status</th>
+                        <th className="py-3 px-3.5 text-right">Value</th>
+                        <th className="py-3 px-3.5 text-right">
                           {dateBasis === 'won' ? 'Won Date' : 'Created Date'}
                         </th>
                       </tr>
@@ -1311,35 +1318,35 @@ export default function Agent360Modal({
                     <tbody className="divide-y divide-gray-100">
                       {filteredDeals.length > 0 ? (
                         filteredDeals.map((d: any) => (
-                          <tr key={d.id} className="hover:bg-blue-50/30 transition-colors">
-                            <td className="py-2.5 px-3 font-bold text-gray-900">
-                              <div className="truncate max-w-[170px]" title={d.name}>
+                          <tr key={d.id} className="hover:bg-blue-50/40 transition-colors">
+                            <td className="py-3 px-3.5 font-bold text-gray-900">
+                              <div className="truncate max-w-[200px]" title={d.name}>
                                 {d.name || 'Untitled Opportunity'}
                               </div>
                               <div className="text-[10px] text-gray-400 font-normal">
                                 {d.source || 'Direct'}
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600">
-                              <div className="font-semibold text-gray-900 truncate max-w-[140px]">
+                            <td className="py-3 px-3.5 text-gray-600">
+                              <div className="font-semibold text-gray-900 truncate max-w-[160px]">
                                 {d.contactName || 'No Name'}
                               </div>
                               {d.contactPhone && (
                                 <div className="text-[10px] text-gray-400">{d.contactPhone}</div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3">
-                              <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-[11px] truncate max-w-[130px]" title={d.customFieldValue || d.nationality}>
+                            <td className="py-3 px-3.5">
+                              <span className="inline-flex items-center gap-1 font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-md text-[11px] truncate max-w-[150px]" title={d.customFieldValue || d.nationality}>
                                 <Globe className="w-3 h-3 text-indigo-500 shrink-0" />
                                 {d.customFieldValue || d.nationality || 'Unspecified'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600 truncate max-w-[120px]">
+                            <td className="py-3 px-3.5 text-gray-600 truncate max-w-[140px]">
                               {d.stageName || 'Pipeline Stage'}
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-3 px-3.5">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
                                   d.status === 'won'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : d.status === 'lost' || d.status === 'abandoned'
@@ -1350,18 +1357,18 @@ export default function Agent360Modal({
                                 {d.status || 'open'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-extrabold text-gray-900">
+                            <td className="py-3 px-3.5 text-right font-black text-gray-900 text-sm">
                               {formatCurrency(d.monetaryValue || 0)}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-gray-500 font-medium">
+                            <td className="py-3 px-3.5 text-right text-gray-500 font-medium">
                               {(d.wonAt || d.createdAt || '').slice(0, 10)}
                             </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-gray-400">
-                            <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <td colSpan={7} className="py-16 text-center text-gray-400">
+                            <Briefcase className="w-9 h-9 mx-auto mb-2 text-gray-300" />
                             No deals match the filter criteria.
                           </td>
                         </tr>
@@ -1375,44 +1382,44 @@ export default function Agent360Modal({
 
           {/* TAB 3: MEETINGS & APPOINTMENTS */}
           {activeTab === 'meetings' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="text-xs text-gray-500 flex justify-between items-center">
                 <span>Recent & Scheduled Client Consultations:</span>
                 <span className="font-bold text-gray-900">{appointments.length} Meetings</span>
               </div>
 
               <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[460px] overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-gray-500 font-bold sticky top-0 border-b border-gray-200">
+                    <thead className="bg-gray-50 text-gray-600 font-bold sticky top-0 border-b border-gray-200">
                       <tr>
-                        <th className="py-2.5 px-3">Meeting Title</th>
-                        <th className="py-2.5 px-3">Client</th>
-                        <th className="py-2.5 px-3">Type</th>
-                        <th className="py-2.5 px-3">Status</th>
-                        <th className="py-2.5 px-3 text-right">Scheduled Time</th>
-                        <th className="py-2.5 px-3 text-center">Action</th>
+                        <th className="py-3 px-3.5">Meeting Title</th>
+                        <th className="py-3 px-3.5">Client</th>
+                        <th className="py-3 px-3.5">Type</th>
+                        <th className="py-3 px-3.5">Status</th>
+                        <th className="py-3 px-3.5 text-right">Scheduled Time</th>
+                        <th className="py-3 px-3.5 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {appointments.length > 0 ? (
                         appointments.map((a: any) => (
-                          <tr key={a.id} className="hover:bg-blue-50/30 transition-colors">
-                            <td className="py-2.5 px-3 font-bold text-gray-900">
-                              <div className="truncate max-w-[190px]" title={a.title}>
+                          <tr key={a.id} className="hover:bg-blue-50/40 transition-colors">
+                            <td className="py-3 px-3.5 font-bold text-gray-900">
+                              <div className="truncate max-w-[220px]" title={a.title}>
                                 {a.title || 'Client Consultation'}
                               </div>
                               {a.calendarName && (
                                 <div className="text-[10px] text-gray-400">{a.calendarName}</div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600">
+                            <td className="py-3 px-3.5 text-gray-600">
                               <div className="font-semibold text-gray-900">{a.clientName || 'Client'}</div>
                               {a.contactPhone && (
                                 <div className="text-[10px] text-gray-400">{a.contactPhone}</div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-3 px-3.5">
                               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                                 {a.meetingLocationType === 'zoom' ? (
                                   <Video className="w-3 h-3 text-blue-600" />
@@ -1424,9 +1431,9 @@ export default function Agent360Modal({
                                 <span className="capitalize">{a.meetingLocationType || 'meeting'}</span>
                               </span>
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-3 px-3.5">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
                                   a.status === 'confirmed'
                                     ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                     : a.status === 'showed'
@@ -1439,7 +1446,7 @@ export default function Agent360Modal({
                                 {a.status || 'confirmed'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right text-gray-700 font-semibold whitespace-nowrap">
+                            <td className="py-3 px-3.5 text-right text-gray-700 font-semibold whitespace-nowrap">
                               <div>{new Date(a.startTime).toLocaleDateString()}</div>
                               <div className="text-[10px] text-gray-400">
                                 {new Date(a.startTime).toLocaleTimeString([], {
@@ -1448,15 +1455,15 @@ export default function Agent360Modal({
                                 })}
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 text-center">
+                            <td className="py-3 px-3.5 text-center">
                               {a.meetingUrl ? (
                                 <a
                                   href={a.meetingUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors"
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors"
                                 >
-                                  Join <ExternalLink className="w-2.5 h-2.5" />
+                                  Join <ExternalLink className="w-3 h-3" />
                                 </a>
                               ) : (
                                 <span className="text-gray-300 text-xs">—</span>
@@ -1466,8 +1473,8 @@ export default function Agent360Modal({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-gray-400">
-                            <CalendarDays className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <td colSpan={6} className="py-16 text-center text-gray-400">
+                            <CalendarDays className="w-9 h-9 mx-auto mb-2 text-gray-300" />
                             No scheduled meetings found for this sales consultant.
                           </td>
                         </tr>
@@ -1481,21 +1488,21 @@ export default function Agent360Modal({
 
           {/* TAB 4: TASKS */}
           {activeTab === 'tasks' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="text-xs text-gray-500 flex justify-between items-center">
                 <span>Follow-up Tasks & Action Items:</span>
                 <span className="font-bold text-gray-900">{tasks.length} Total Tasks</span>
               </div>
 
               <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[460px] overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-gray-500 font-bold sticky top-0 border-b border-gray-200">
+                    <thead className="bg-gray-50 text-gray-600 font-bold sticky top-0 border-b border-gray-200">
                       <tr>
-                        <th className="py-2.5 px-3">Task Title / Details</th>
-                        <th className="py-2.5 px-3">Related Contact</th>
-                        <th className="py-2.5 px-3">Status</th>
-                        <th className="py-2.5 px-3 text-right">Due Date</th>
+                        <th className="py-3 px-3.5">Task Title / Details</th>
+                        <th className="py-3 px-3.5">Related Contact</th>
+                        <th className="py-3 px-3.5">Status</th>
+                        <th className="py-3 px-3.5 text-right">Due Date</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1504,8 +1511,8 @@ export default function Agent360Modal({
                           const isOverdue =
                             !t.completed && t.dueDate && new Date(t.dueDate) < new Date();
                           return (
-                            <tr key={t.id} className="hover:bg-blue-50/30 transition-colors">
-                              <td className="py-2.5 px-3 font-bold text-gray-900">
+                            <tr key={t.id} className="hover:bg-blue-50/40 transition-colors">
+                              <td className="py-3 px-3.5 font-bold text-gray-900">
                                 <div>{t.title || 'Follow-up Task'}</div>
                                 {t.body && (
                                   <div className="text-[10px] text-gray-500 font-normal line-clamp-1">
@@ -1513,12 +1520,12 @@ export default function Agent360Modal({
                                   </div>
                                 )}
                               </td>
-                              <td className="py-2.5 px-3 text-gray-600 font-semibold">
+                              <td className="py-3 px-3.5 text-gray-600 font-semibold">
                                 {t.contactName || 'Client'}
                               </td>
-                              <td className="py-2.5 px-3">
+                              <td className="py-3 px-3.5">
                                 <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
                                     t.completed
                                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                       : isOverdue
@@ -1529,7 +1536,7 @@ export default function Agent360Modal({
                                   {t.completed ? 'Completed' : isOverdue ? 'Overdue' : 'Pending'}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <td className="py-3 px-3.5 text-right whitespace-nowrap">
                                 {t.dueDate ? (
                                   <span
                                     className={`font-semibold ${
@@ -1547,8 +1554,8 @@ export default function Agent360Modal({
                         })
                       ) : (
                         <tr>
-                          <td colSpan={4} className="py-12 text-center text-gray-400">
-                            <ListTodo className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <td colSpan={4} className="py-16 text-center text-gray-400">
+                            <ListTodo className="w-9 h-9 mx-auto mb-2 text-gray-300" />
                             No tasks found for this consultant.
                           </td>
                         </tr>
@@ -1562,24 +1569,24 @@ export default function Agent360Modal({
         </div>
 
         {/* Footer Actions: Download PDF, Export CSV, Close */}
-        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
-            <span>Filtered by: <strong className="text-gray-700">{dateBasis === 'won' ? 'Won Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})</span>
+        <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shrink-0">
+          <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+            <span>Filtered by: <strong className="text-gray-800">{dateBasis === 'won' ? 'Won Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})</span>
             <span>·</span>
-            <span>Segregated by: <strong className="text-indigo-700">{segregation.fieldLabel || 'Nationality'}</strong></span>
+            <span>Segregated by: <strong className="text-indigo-700">{cleanSegLabel}</strong></span>
           </div>
 
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex items-center gap-2.5 justify-end">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all"
+              className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all"
             >
               Close
             </button>
 
             <button
               onClick={handleExportCsv}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 active:scale-95 border border-slate-200"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 active:scale-95 border border-slate-200"
               title="Export complete 360 data to CSV spreadsheet"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1589,8 +1596,8 @@ export default function Agent360Modal({
             <button
               onClick={handleDownloadPdf}
               disabled={isGeneratingPdf}
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 active:scale-95 disabled:opacity-50"
-              title="Download clean executive PDF report"
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              title="Download executive PDF audit report"
             >
               {isGeneratingPdf ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
