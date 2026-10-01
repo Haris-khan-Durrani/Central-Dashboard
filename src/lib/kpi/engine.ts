@@ -348,15 +348,11 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
         pipelineId: true,
         stageId: true,
         source: true,
-        nationality: true,
-        customFields: true,
         contact: {
           select: {
             firstName: true,
             lastName: true,
             phone: true,
-            nationality: true,
-            customFields: true,
           },
         },
         createdAt: true,
@@ -740,25 +736,48 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 
   const nationColors: Record<string, string> = {
     'United Arab Emirates': 'bg-emerald-600',
+    'Emirati': 'bg-emerald-600',
     'Saudi Arabia': 'bg-green-600',
+    'Saudi': 'bg-green-600',
     'Qatar': 'bg-purple-700',
+    'Qatari': 'bg-purple-700',
     'Kuwait': 'bg-blue-600',
+    'Kuwaiti': 'bg-blue-600',
     'Oman': 'bg-red-600',
+    'Omani': 'bg-red-600',
     'Bahrain': 'bg-red-500',
+    'Bahraini': 'bg-red-500',
     'United Kingdom': 'bg-indigo-600',
+    'British': 'bg-indigo-600',
     'United States / Canada': 'bg-sky-600',
     'United States': 'bg-sky-600',
+    'American': 'bg-sky-600',
     'Canada': 'bg-red-600',
+    'Canadian': 'bg-red-600',
     'India': 'bg-orange-500',
+    'Indian': 'bg-orange-500',
     'Pakistan': 'bg-emerald-700',
+    'Pakistani': 'bg-emerald-700',
     'Egypt': 'bg-amber-600',
+    'Egyptian': 'bg-amber-600',
     'Lebanon': 'bg-red-600',
+    'Lebanese': 'bg-red-600',
     'Jordan': 'bg-teal-600',
+    'Jordanian': 'bg-teal-600',
     'France': 'bg-blue-600',
+    'French': 'bg-blue-600',
     'Germany': 'bg-yellow-600',
+    'German': 'bg-yellow-600',
     'Russia': 'bg-blue-700',
+    'Russian': 'bg-blue-700',
     'Bangladesh': 'bg-emerald-800',
+    'Bangladeshi': 'bg-emerald-800',
     'Philippines': 'bg-blue-500',
+    'Filipino': 'bg-blue-500',
+    'Expats': 'bg-violet-600',
+    'Expat': 'bg-violet-600',
+    'GCC': 'bg-teal-700',
+    'GCC National': 'bg-teal-700',
     'Unspecified': 'bg-slate-400',
   };
 
@@ -969,28 +988,73 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
   if (normalizedKey.includes('nationality') || normalizedKey.includes('country')) {
     const isInvalid = (val: string | null | undefined) => {
       if (!val) return true;
-      const s = val.trim().toLowerCase();
+      const s = String(val).trim().toLowerCase();
       return !s || ['unspecified', 'null', 'none', 'n/a', '-', 'unknown', 'undefined'].includes(s);
     };
 
-    if (!isInvalid(opp.nationality)) return opp.nationality.trim();
-    if (!isInvalid(opp.contact?.nationality)) return opp.contact.nationality.trim();
+    const cleanString = (raw: any): string | null => {
+      if (raw === null || raw === undefined) return null;
+      let val = raw;
+      if (Array.isArray(val)) {
+        val = val.find((item: any) => item !== null && item !== undefined && String(item).trim() !== '') ?? val[0];
+      }
+      if (typeof val === 'object' && val !== null) {
+        val = val.value || val.label || val.name || val.text || '';
+      }
+      const str = String(val).trim();
+      if (isInvalid(str)) return null;
+
+      // Clean Title Case while preserving uppercase acronyms (UAE, GCC, UK, USA, KSA)
+      if (/^[A-Z]{2,4}$/.test(str)) return str;
+      return str
+        .split(/\s+/)
+        .map((w) => {
+          const l = w.toLowerCase();
+          if (['uae', 'uk', 'usa', 'ksa', 'gcc', 'eu'].includes(l)) return l.toUpperCase();
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        })
+        .join(' ');
+    };
+
+    const isMatchKey = (k: string) => {
+      const lk = k.toLowerCase();
+      return (
+        lk.includes('nationality') ||
+        lk.includes('country') ||
+        lk.includes('citizen') ||
+        lk.includes('origin') ||
+        lk.includes('passport') ||
+        lk.includes('nation') ||
+        lk.includes('demographic')
+      );
+    };
+
+    if (!isInvalid(opp.nationality)) {
+      const cl = cleanString(opp.nationality);
+      if (cl) return cl;
+    }
+    if (!isInvalid(opp.contact?.nationality)) {
+      const cl = cleanString(opp.contact.nationality);
+      if (cl) return cl;
+    }
 
     const checkJson = (cf: any) => {
       if (!cf) return null;
       if (typeof cf === 'object' && !Array.isArray(cf)) {
         for (const [k, v] of Object.entries(cf)) {
-          if (k.toLowerCase().includes('nationality') || k.toLowerCase().includes('country')) {
-            if (v && typeof v === 'string' && !isInvalid(v)) return v.trim();
+          if (isMatchKey(k)) {
+            const res = cleanString(v);
+            if (res) return res;
           }
         }
       }
       if (Array.isArray(cf)) {
         for (const item of cf) {
-          const keyName = String(item.key || item.name || item.id || '').toLowerCase();
-          if (keyName.includes('nationality') || keyName.includes('country')) {
-            const val = item.value || item.field_value;
-            if (val && typeof val === 'string' && !isInvalid(val)) return val.trim();
+          const keyName = String(item.key || item.name || item.id || item.fieldKey || '').toLowerCase();
+          if (isMatchKey(keyName)) {
+            const rawVal = item.value !== undefined ? item.value : (item.field_value !== undefined ? item.field_value : item.selectedValues);
+            const res = cleanString(rawVal);
+            if (res) return res;
           }
         }
       }
@@ -1088,19 +1152,35 @@ export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.na
   const searchKey = normalizedKey.replace(/^contact\./, '').replace(/^deal\./, '');
   const findInObj = (cf: any) => {
     if (!cf) return null;
+    const clean = (val: any): string | null => {
+      if (val === undefined || val === null) return null;
+      let target = val;
+      if (Array.isArray(target)) {
+        target = target.find((item: any) => item !== null && item !== undefined && String(item).trim() !== '') ?? target[0];
+      }
+      if (typeof target === 'object' && target !== null) {
+        target = target.value || target.label || target.name || '';
+      }
+      const s = String(target).trim();
+      return s ? s : null;
+    };
+
     if (typeof cf === 'object' && !Array.isArray(cf)) {
       for (const [k, v] of Object.entries(cf)) {
-        if (k.toLowerCase() === normalizedKey || k.toLowerCase() === searchKey) {
-          if (v !== undefined && v !== null) return String(v).trim();
+        const lk = k.toLowerCase();
+        if (lk === normalizedKey || lk === searchKey || lk.includes(searchKey)) {
+          const res = clean(v);
+          if (res) return res;
         }
       }
     }
     if (Array.isArray(cf)) {
       for (const item of cf) {
-        const keyName = String(item.key || item.name || item.id || '').toLowerCase();
-        if (keyName === normalizedKey || keyName === searchKey) {
-          const val = item.value !== undefined ? item.value : item.field_value;
-          if (val !== undefined && val !== null) return String(val).trim();
+        const keyName = String(item.key || item.name || item.id || item.fieldKey || '').toLowerCase();
+        if (keyName === normalizedKey || keyName === searchKey || keyName.includes(searchKey)) {
+          const rawVal = item.value !== undefined ? item.value : (item.field_value !== undefined ? item.field_value : item.selectedValues);
+          const res = clean(rawVal);
+          if (res) return res;
         }
       }
     }
