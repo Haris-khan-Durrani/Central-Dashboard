@@ -405,6 +405,7 @@ export default function DashboardPage() {
         currency={currency}
         locationId={activeLocationId}
         dateRangeLabel={dateRange}
+        initialDateBasis={dateBasis === 'won' ? 'won' : 'created'}
         showCallStats={false}
         onClose={() => setSelectedAgent(null)}
         onToast={(msg) => showToast(msg, 'info')}
