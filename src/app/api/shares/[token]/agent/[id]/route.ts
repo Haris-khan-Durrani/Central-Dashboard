@@ -29,7 +29,18 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'This share link has expired.' }, { status: 410 });
     }
 
-    const report = await getAgent360Report(share.locationId, agentId);
+    const { searchParams } = new URL(req.url);
+    const dateRange = searchParams.get('date_range') || searchParams.get('dateRange') || 'this_month';
+    const startDate = searchParams.get('start_date') || searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('end_date') || searchParams.get('endDate') || undefined;
+    const dateBasis = searchParams.get('date_basis') || searchParams.get('dateBasis') || 'won';
+
+    const report = await getAgent360Report(share.locationId, agentId, {
+      dateRange,
+      startDate,
+      endDate,
+      dateBasis,
+    });
 
     return NextResponse.json(
       { success: true, report },

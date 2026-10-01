@@ -20,6 +20,7 @@ export interface AgentData {
   ghlUserId: string;
   name: string;
   role: string;
+  email?: string | null;
   avatarUrl: string | null;
   leads: number;
   worked: number;

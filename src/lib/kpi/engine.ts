@@ -775,9 +775,29 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 }
 
 /**
- * Fetch 360° individual agent report
+ * Fetch 360° individual agent report with interactive date filtering, won date basis, deals, and appointments
  */
-export async function getAgent360Report(locationId: string, ghlUserId: string) {
+export interface Agent360FilterOptions {
+  dateRange?: string; // 'today', 'yesterday', 'last_7', 'this_month', 'last_month', 'last_30', 'this_quarter', 'this_year', 'all', 'custom'
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+  dateBasis?: string; // 'won', 'created', 'updated'
+}
+
+export async function getAgent360Report(
+  locationId: string,
+  ghlUserId: string,
+  options?: Agent360FilterOptions
+) {
+  const dateRange = options?.dateRange || 'this_month';
+  const dateBasis = (options?.dateBasis || 'won').toLowerCase();
+  const customStart = options?.startDate;
+  const customEnd = options?.endDate;
+
+  const cacheKey = `agent360:${locationId}:${ghlUserId}:${dateRange}:${customStart || ''}:${customEnd || ''}:${dateBasis}`;
+  const cached = fastCache.get<any>(cacheKey);
+  if (cached) return cached;
+
   const user = await prisma.user.findFirst({
     where: { locationId, ghlUserId },
   });
@@ -786,28 +806,68 @@ export async function getAgent360Report(locationId: string, ghlUserId: string) {
     throw new Error(`Agent with ID ${ghlUserId} not found in location ${locationId}`);
   }
 
-  const opps = await prisma.opportunity.findMany({
-    where: { locationId, assignedTo: ghlUserId },
-    include: { stage: true, pipeline: true },
-  });
-
-  const tasks = await prisma.task.findMany({
-    where: { locationId, assignedTo: ghlUserId },
+  const loc = await prisma.ghlLocation.findUnique({
+    where: { locationId },
+    select: { currency: true, name: true, timezone: true },
   });
 
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  let startDate: Date | undefined;
+  let endDate: Date | undefined = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-  const totalLeads = opps.length;
-  let worked = 0;
-  let won = 0;
-  let lost = 0;
-  let revenue = 0;
+  // Parse date ranges
+  if (dateRange === 'today') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  } else if (dateRange === 'yesterday') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+  } else if (dateRange === 'last_7') {
+    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    startDate.setHours(0, 0, 0, 0);
+  } else if (dateRange === 'this_month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  } else if (dateRange === 'last_month') {
+    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+    endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  } else if (dateRange === 'last_30') {
+    startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startDate.setHours(0, 0, 0, 0);
+  } else if (dateRange === 'this_quarter' || dateRange === 'q3') {
+    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+    startDate = new Date(now.getFullYear(), quarterMonth, 1, 0, 0, 0, 0);
+    endDate = new Date(now.getFullYear(), quarterMonth + 3, 0, 23, 59, 59, 999);
+  } else if (dateRange === 'this_year') {
+    startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+  } else if (dateRange === 'all') {
+    startDate = undefined;
+    endDate = undefined;
+  } else if (dateRange === 'custom') {
+    if (customStart) {
+      const parts = customStart.split('-');
+      startDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
+    }
+    if (customEnd) {
+      const parts = customEnd.split('-');
+      endDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 23, 59, 59, 999);
+    }
+  }
 
-  // Stage breakdown
-  const stageBreakdown: Record<string, number> = {};
-  for (const o of opps) {
+  // 1. Fetch all lifetime opportunities for this agent
+  const allLifetimeOpps = await prisma.opportunity.findMany({
+    where: { locationId, assignedTo: ghlUserId },
+    include: { stage: true, pipeline: true, contact: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const lifetimeLeads = allLifetimeOpps.length;
+  let lifetimeWorked = 0;
+  let lifetimeWon = 0;
+  let lifetimeLost = 0;
+  let lifetimeRevenue = 0;
+  const lifetimeStageBreakdown: Record<string, number> = {};
+
+  for (const o of allLifetimeOpps) {
     const st = (o.status || 'open').toLowerCase();
     const stName = o.stage?.name || 'Unassigned Stage';
     const isInitialStage = o.stage
@@ -815,40 +875,240 @@ export async function getAgent360Report(locationId: string, ghlUserId: string) {
       : false;
     const isWorked = st === 'won' || st === 'lost' || st === 'abandoned' || !isInitialStage;
 
-    if (isWorked) worked++;
+    if (isWorked) lifetimeWorked++;
     if (st === 'won') {
-      won++;
-      revenue += o.monetaryValue;
+      lifetimeWon++;
+      lifetimeRevenue += o.monetaryValue || 0;
     } else if (st === 'lost' || st === 'abandoned') {
-      lost++;
+      lifetimeLost++;
     }
-
-    stageBreakdown[stName] = (stageBreakdown[stName] || 0) + 1;
+    lifetimeStageBreakdown[stName] = (lifetimeStageBreakdown[stName] || 0) + 1;
   }
 
-  const tasksToday = tasks.filter((t) => !t.completed && t.dueDate && t.dueDate >= startOfDay && t.dueDate <= endOfDay).length;
-  const tasksPending = tasks.filter((t) => !t.completed).length;
-  const tasksOverdue = tasks.filter((t) => !t.completed && t.dueDate && t.dueDate < now).length;
+  const lifetimeConversion = lifetimeLeads > 0
+    ? `${((lifetimeWon / lifetimeLeads) * 100).toFixed(1)}%`
+    : '0.0%';
 
-  return {
+  // 2. Compute Filtered Metrics based on dateRange and dateBasis
+  let filteredWonOpps: typeof allLifetimeOpps = [];
+  let filteredLeadsOpps: typeof allLifetimeOpps = [];
+  let stageBreakdown: Record<string, number> = {};
+
+  const formatDeal = (o: any) => ({
+    id: o.id,
+    ghlOpportunityId: o.ghlOpportunityId,
+    name: o.name || 'Untitled Deal',
+    contactName: o.contact
+      ? `${o.contact.firstName || ''} ${o.contact.lastName || ''}`.trim() || o.name
+      : o.name,
+    contactPhone: o.contact?.phone || null,
+    contactEmail: o.contact?.email || null,
+    pipelineName: o.pipeline?.name || 'Pipeline',
+    stageName: o.stage?.name || 'Stage',
+    monetaryValue: o.monetaryValue || 0,
+    status: (o.status || 'open').toLowerCase(),
+    source: o.source || 'Direct',
+    createdAt: o.createdAt.toISOString(),
+    wonAt: o.wonAt ? o.wonAt.toISOString() : null,
+    updatedAt: o.updatedAt.toISOString(),
+  });
+
+  if (dateBasis === 'won') {
+    // WON DATE BASIS: Filter by wonAt
+    filteredWonOpps = allLifetimeOpps.filter((o) => {
+      if ((o.status || '').toLowerCase() !== 'won') return false;
+      const targetDate = o.wonAt || o.updatedAt;
+      if (!targetDate) return false;
+      if (startDate && targetDate < startDate) return false;
+      if (endDate && targetDate > endDate) return false;
+      return true;
+    });
+
+    // Also get leads created in the same window to calculate conversion & pipeline activity
+    filteredLeadsOpps = allLifetimeOpps.filter((o) => {
+      if (startDate && o.createdAt < startDate) return false;
+      if (endDate && o.createdAt > endDate) return false;
+      return true;
+    });
+
+    for (const o of (filteredWonOpps.length > 0 ? filteredWonOpps : filteredLeadsOpps)) {
+      const stName = o.stage?.name || 'Won Stage';
+      stageBreakdown[stName] = (stageBreakdown[stName] || 0) + 1;
+    }
+  } else {
+    // CREATED OR UPDATED BASIS
+    const dateField = dateBasis === 'updated' ? 'updatedAt' : 'createdAt';
+    filteredLeadsOpps = allLifetimeOpps.filter((o) => {
+      const targetDate = o[dateField];
+      if (startDate && targetDate < startDate) return false;
+      if (endDate && targetDate > endDate) return false;
+      return true;
+    });
+
+    filteredWonOpps = filteredLeadsOpps.filter((o) => (o.status || '').toLowerCase() === 'won');
+
+    for (const o of filteredLeadsOpps) {
+      const stName = o.stage?.name || 'Pipeline Stage';
+      stageBreakdown[stName] = (stageBreakdown[stName] || 0) + 1;
+    }
+  }
+
+  // Calculate filtered stats
+  const wonCount = filteredWonOpps.length;
+  const wonRevenue = filteredWonOpps.reduce((sum, o) => sum + (o.monetaryValue || 0), 0);
+  const leadsCount = dateBasis === 'won'
+    ? (filteredLeadsOpps.length > 0 ? filteredLeadsOpps.length : wonCount)
+    : filteredLeadsOpps.length;
+
+  let workedCount = 0;
+  let lostCount = 0;
+  let openCount = 0;
+
+  for (const o of filteredLeadsOpps) {
+    const st = (o.status || 'open').toLowerCase();
+    const isInitialStage = o.stage
+      ? (o.stage.name.toLowerCase().includes('new lead') || o.stage.position === 0)
+      : false;
+    const isWorked = st === 'won' || st === 'lost' || st === 'abandoned' || !isInitialStage;
+    if (isWorked) workedCount++;
+    if (st === 'lost' || st === 'abandoned') lostCount++;
+    if (st === 'open') openCount++;
+  }
+
+  const conversionRate = leadsCount > 0
+    ? `${((wonCount / leadsCount) * 100).toFixed(1)}%`
+    : wonCount > 0
+    ? '100%'
+    : '0.0%';
+
+  // 3. Fetch Tasks
+  const dbTasks = await prisma.task.findMany({
+    where: { locationId, assignedTo: ghlUserId },
+    include: { contact: true },
+    orderBy: [{ completed: 'asc' }, { dueDate: 'asc' }],
+    take: 50,
+  });
+
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const tasksToday = dbTasks.filter(
+    (t) => !t.completed && t.dueDate && t.dueDate >= startOfDay && t.dueDate <= endOfDay
+  ).length;
+  const tasksPending = dbTasks.filter((t) => !t.completed).length;
+  const tasksOverdue = dbTasks.filter((t) => !t.completed && t.dueDate && t.dueDate < now).length;
+
+  const formattedTasks = dbTasks.map((t) => ({
+    id: t.id,
+    ghlTaskId: t.ghlTaskId,
+    title: t.title,
+    body: t.body,
+    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+    completed: t.completed,
+    completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+    contactName: t.contact ? `${t.contact.firstName || ''} ${t.contact.lastName || ''}`.trim() : null,
+  }));
+
+  // 4. Fetch Appointments
+  const dbAppointments = await prisma.appointment.findMany({
+    where: { locationId, assignedTo: ghlUserId },
+    include: { contact: true },
+    orderBy: { startTime: 'desc' },
+    take: 50,
+  });
+
+  const formattedAppointments = dbAppointments.map((a) => {
+    const contactDisplay = a.contactName || (a.contact ? `${a.contact.firstName || ''} ${a.contact.lastName || ''}`.trim() : null);
+    const parsed = parseMeetingDetails(
+      a.title,
+      contactDisplay,
+      user.name,
+      a.meetingLocationType || ''
+    );
+    return {
+      id: a.id,
+      ghlAppointmentId: a.ghlAppointmentId,
+      title: a.title || 'Client Appointment',
+      clientName: parsed.clientName || contactDisplay || 'Client',
+      hostName: parsed.hostName || user.name,
+      bookedBy: parsed.bookedBy,
+      contactPhone: a.contactPhone || a.contact?.phone || null,
+      contactEmail: a.contactEmail || a.contact?.email || null,
+      startTime: a.startTime.toISOString(),
+      endTime: a.endTime ? a.endTime.toISOString() : null,
+      status: a.status,
+      meetingLocationType: parsed.modeType || a.meetingLocationType || 'meeting',
+      meetingUrl: a.meetingUrl,
+      calendarName: a.calendarName,
+    };
+  });
+
+  // Selected deals list:
+  // If in Won Basis, show won deals first (or all if none), sorted by wonAt
+  const displayOpps = dateBasis === 'won'
+    ? (filteredWonOpps.length > 0 ? filteredWonOpps : filteredLeadsOpps)
+    : filteredLeadsOpps;
+
+  const deals = displayOpps.slice(0, 100).map(formatDeal);
+
+  const targetRevenue = user.targetRevenue ?? 50000;
+  const targetProgress = targetRevenue > 0
+    ? Math.min(100, Math.round((wonRevenue / targetRevenue) * 100))
+    : 0;
+
+  const result = {
     user: {
+      id: user.id,
+      ghlUserId: user.ghlUserId,
       name: user.name,
       role: user.role,
       email: user.email,
       avatarUrl: user.avatarUrl,
+      targetRevenue,
+    },
+    location: {
+      name: loc?.name || 'Sales Office',
+      currency: loc?.currency || 'AED',
+      timezone: loc?.timezone || 'Asia/Dubai',
+    },
+    filter: {
+      dateRange,
+      startDate: startDate ? startDate.toISOString() : null,
+      endDate: endDate ? endDate.toISOString() : null,
+      dateBasis,
     },
     metrics: {
-      leads: totalLeads,
-      worked,
-      won,
-      lost,
-      conversion: totalLeads > 0 ? `${((won / totalLeads) * 100).toFixed(1)}%` : '0.0%',
-      revenue,
+      leads: leadsCount,
+      worked: workedCount,
+      won: wonCount,
+      lost: lostCount,
+      open: openCount,
+      conversion: conversionRate,
+      revenue: wonRevenue,
+      targetRevenue,
+      targetProgress,
       tasksToday,
       tasksPending,
       tasksOverdue,
-      activity: `${worked > 0 ? Math.round(worked * 1.5) : 0} Calls / ${worked > 0 ? Math.round(worked * 2.2) : 0} WhatsApp`,
+      activity: `${workedCount > 0 ? Math.round(workedCount * 1.5) : 0} Calls / ${workedCount > 0 ? Math.round(workedCount * 2.2) : 0} WhatsApp`,
     },
-    stageBreakdown,
+    lifetime: {
+      leads: lifetimeLeads,
+      worked: lifetimeWorked,
+      won: lifetimeWon,
+      lost: lifetimeLost,
+      revenue: lifetimeRevenue,
+      conversion: lifetimeConversion,
+      stageBreakdown: lifetimeStageBreakdown,
+    },
+    stageBreakdown: Object.keys(stageBreakdown).length > 0 ? stageBreakdown : lifetimeStageBreakdown,
+    deals,
+    appointments: formattedAppointments,
+    tasks: formattedTasks,
   };
+
+  // Cache for 15 seconds
+  fastCache.set(cacheKey, result, 15);
+  return result;
 }
+
