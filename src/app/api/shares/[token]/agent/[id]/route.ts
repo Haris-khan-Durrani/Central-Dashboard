@@ -34,12 +34,14 @@ export async function GET(
     const startDate = searchParams.get('start_date') || searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('end_date') || searchParams.get('endDate') || undefined;
     const dateBasis = searchParams.get('date_basis') || searchParams.get('dateBasis') || 'won';
+    const segregationField = searchParams.get('segregation_field') || searchParams.get('segregationField') || 'contact.nationality';
 
     const report = await getAgent360Report(share.locationId, agentId, {
       dateRange,
       startDate,
       endDate,
       dateBasis,
+      segregationField,
     });
 
     return NextResponse.json(

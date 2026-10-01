@@ -104,6 +104,8 @@ model Contact {
   phone          String?       @db.VarChar(100)
   source         String?       @default("Direct") @db.VarChar(100)
   campaign       String?       @db.VarChar(150)
+  nationality    String?       @db.VarChar(100)
+  customFields   Json?         @map("custom_fields")
   dateAdded      DateTime      @default(now()) @map("date_added")
   dateUpdated    DateTime      @default(now()) @map("date_updated")
   lastActivityAt DateTime?     @map("last_activity_at")
@@ -133,6 +135,8 @@ model Opportunity {
   status           String        @default("open") @db.VarChar(50) // open, won, lost, abandoned
   monetaryValue    Float         @default(0) @map("monetary_value")
   source           String?       @default("Direct") @db.VarChar(100)
+  nationality      String?       @db.VarChar(100)
+  customFields     Json?         @map("custom_fields")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @default(now()) @map("updated_at")
   wonAt            DateTime?     @map("won_at")

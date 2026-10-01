@@ -24,6 +24,9 @@ import {
   Video,
   MapPin,
   CalendarDays,
+  Globe,
+  Tag,
+  Filter,
 } from 'lucide-react';
 import { AgentData } from '../dashboard/AgentCardsGrid';
 
@@ -51,6 +54,14 @@ const DATE_RANGE_OPTIONS = [
   { value: 'custom', label: 'Custom Range...' },
 ];
 
+const SEGREGATION_OPTIONS = [
+  { value: 'contact.nationality', label: '🌍 Nationality ({{contact.nationality}})' },
+  { value: 'source', label: '🏷️ Lead Source ({{contact.source}})' },
+  { value: 'campaign', label: '🎯 Campaign ({{contact.campaign}})' },
+  { value: 'stage', label: '💼 Pipeline Stage' },
+  { value: 'custom_input', label: '✏️ Custom Field Key...' },
+];
+
 export default function Agent360Modal({
   agent,
   currency,
@@ -73,6 +84,11 @@ export default function Agent360Modal({
   const [customEnd, setCustomEnd] = useState<string>('');
   const [isApplyingCustom, setIsApplyingCustom] = useState<boolean>(false);
 
+  // Custom field segregation state (Default: contact.nationality)
+  const [segregationOption, setSegregationOption] = useState<string>('contact.nationality');
+  const [customFieldKey, setCustomFieldKey] = useState<string>('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<'overview' | 'deals' | 'meetings' | 'tasks'>('overview');
   const [dealStatusFilter, setDealStatusFilter] = useState<'all' | 'won' | 'open' | 'lost'>('all');
   const [dealSearch, setDealSearch] = useState<string>('');
@@ -81,11 +97,18 @@ export default function Agent360Modal({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
-  // Fetch 360 data whenever agent, dateRange, dateBasis, or custom dates change
+  // Active segregation field string
+  const activeSegregationField = useMemo(() => {
+    if (segregationOption === 'custom_input') {
+      return customFieldKey.trim() || 'contact.nationality';
+    }
+    return segregationOption;
+  }, [segregationOption, customFieldKey]);
+
+  // Fetch 360 data whenever agent, dateRange, dateBasis, custom dates, or segregation field change
   useEffect(() => {
     if (!agent || (!locationId && !shareToken)) return;
 
-    // If custom range is selected but dates aren't filled yet, don't fetch until applied
     if (dateRange === 'custom' && (!customStart || !customEnd)) {
       return;
     }
@@ -96,6 +119,7 @@ export default function Agent360Modal({
     const params = new URLSearchParams();
     params.set('date_range', dateRange);
     params.set('date_basis', dateBasis);
+    params.set('segregation_field', activeSegregationField);
     if (dateRange === 'custom') {
       if (customStart) params.set('start_date', customStart);
       if (customEnd) params.set('end_date', customEnd);
@@ -125,7 +149,7 @@ export default function Agent360Modal({
     return () => {
       isMounted = false;
     };
-  }, [agent?.ghlUserId, locationId, shareToken, dateRange, dateBasis, isApplyingCustom]);
+  }, [agent?.ghlUserId, locationId, shareToken, dateRange, dateBasis, activeSegregationField, isApplyingCustom]);
 
   if (!agent) return null;
 
@@ -163,6 +187,11 @@ export default function Agent360Modal({
   const deals: any[] = reportData?.deals || [];
   const appointments: any[] = reportData?.appointments || [];
   const tasks: any[] = reportData?.tasks || [];
+  const segregation = reportData?.segregation || {
+    fieldLabel: 'Nationality',
+    items: [],
+    totalCategorized: 0,
+  };
 
   const stageBreakdown = reportData?.stageBreakdown || agent.stageBreakdown || {};
   const stageEntries = Object.entries(stageBreakdown as Record<string, number>).sort(
@@ -180,17 +209,22 @@ export default function Agent360Modal({
       if (dealStatusFilter === 'open' && st !== 'open') return false;
       if (dealStatusFilter === 'lost' && st !== 'lost' && st !== 'abandoned') return false;
     }
+    if (selectedCategoryFilter) {
+      const val = d.customFieldValue || d.nationality || 'Unspecified';
+      if (val !== selectedCategoryFilter) return false;
+    }
     if (dealSearch.trim()) {
       const q = dealSearch.toLowerCase();
       const matchName = (d.name || '').toLowerCase().includes(q);
       const matchContact = (d.contactName || '').toLowerCase().includes(q);
       const matchStage = (d.stageName || '').toLowerCase().includes(q);
-      return matchName || matchContact || matchStage;
+      const matchCat = (d.customFieldValue || '').toLowerCase().includes(q);
+      return matchName || matchContact || matchStage || matchCat;
     }
     return true;
   });
 
-  // Apply custom range
+  // Apply custom date range
   const handleApplyCustomRange = () => {
     if (!customStart || !customEnd) {
       if (onToast) onToast('Please specify both Start Date and End Date.');
@@ -202,7 +236,6 @@ export default function Agent360Modal({
   // CSV Export
   const handleExportCsv = () => {
     try {
-      const headers = ['Category', 'Field', 'Value'];
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
       const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
 
@@ -212,6 +245,7 @@ export default function Agent360Modal({
         ['Profile', 'Email', reportData?.user?.email || agent.email || 'N/A'],
         ['Filter', 'Date Range', rangeLabel],
         ['Filter', 'Date Basis', basisLabel],
+        ['Filter', 'Auto-Segregation Field', segregation.fieldLabel || 'Nationality'],
         ['KPIs', 'Won Deals', metrics.won],
         ['KPIs', 'Revenue Generated', `${activeCurrency} ${metrics.revenue}`],
         ['KPIs', 'Leads Received', metrics.leads],
@@ -224,10 +258,20 @@ export default function Agent360Modal({
         ['Tasks', 'Pending Follow-ups', metrics.tasksPending],
         ['Tasks', 'Overdue Tasks', metrics.tasksOverdue],
         ['', '', ''],
+        [`Segregation: ${segregation.fieldLabel}`, 'Category / Value', 'Leads', 'Won Deals', 'Revenue', 'Conversion'],
+        ...(segregation.items || []).map((item: any) => [
+          `Segregation: ${segregation.fieldLabel}`,
+          item.value,
+          item.leads,
+          item.won,
+          `${activeCurrency} ${item.revenue}`,
+          item.conversion,
+        ]),
+        ['', '', ''],
         ['Pipeline Breakdown', 'Stage Name', 'Deals Count'],
         ...stageEntries.map(([stage, count]) => ['Pipeline Breakdown', stage, count]),
         ['', '', ''],
-        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', 'Won Date', 'Source'],
+        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', 'Won Date', segregation.fieldLabel || 'Nationality', 'Source'],
         ...deals.map((d: any) => [
           'Deal',
           d.name || 'Untitled',
@@ -236,6 +280,7 @@ export default function Agent360Modal({
           `${activeCurrency} ${d.monetaryValue || 0}`,
           d.status || 'open',
           d.wonAt ? d.wonAt.slice(0, 10) : 'N/A',
+          d.customFieldValue || d.nationality || 'Unspecified',
           d.source || 'Direct',
         ]),
       ];
@@ -261,12 +306,13 @@ export default function Agent360Modal({
     }
   };
 
-  // PDF Report Generator (Triggers clean printable executive PDF)
+  // PDF Report Generator (Triggers clean printable executive PDF with Segregation Breakdown)
   const handleDownloadPdf = () => {
     setIsGeneratingPdf(true);
     try {
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
       const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
+      const segLabel = segregation.fieldLabel || 'Nationality';
       const generatedAt = new Date().toLocaleString();
 
       const htmlContent = `
@@ -330,6 +376,7 @@ export default function Agent360Modal({
     }
     .badge-blue { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
     .badge-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-purple { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
 
     .agent-card {
       background: #f8fafc;
@@ -424,6 +471,7 @@ export default function Agent360Modal({
       <div class="badge-bar">
         <span class="badge badge-blue">SCOPE: ${rangeLabel.toUpperCase()}</span>
         <span class="badge badge-green">BASIS: ${basisLabel.toUpperCase()}</span>
+        <span class="badge badge-purple">SEGREGATION: ${segLabel.toUpperCase()}</span>
       </div>
     </div>
     <div style="text-align: right;">
@@ -467,28 +515,65 @@ export default function Agent360Modal({
     </div>
   </div>
 
+  <!-- Auto-Segregation Table -->
+  <div class="section-title">Data Segregation: ${segLabel} (${segregation.items?.length || 0} Categories)</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 35%;">${segLabel}</th>
+        <th style="width: 15%; text-align: center;">Leads</th>
+        <th style="width: 15%; text-align: center;">Won Deals</th>
+        <th style="width: 20%; text-align: right;">Won Revenue</th>
+        <th style="width: 15%; text-align: right;">Conversion</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${
+        segregation.items && segregation.items.length > 0
+          ? segregation.items
+              .slice(0, 15)
+              .map(
+                (item: any) => `
+        <tr>
+          <td><strong>${item.value || 'Unspecified'}</strong></td>
+          <td style="text-align: center;">${item.leads}</td>
+          <td style="text-align: center; color: #166534; font-weight: 700;">${item.won}</td>
+          <td style="text-align: right; font-weight: 700;">${formatCurrency(item.revenue)}</td>
+          <td style="text-align: right; color: #2563eb; font-weight: 600;">${item.conversion}</td>
+        </tr>
+      `
+              )
+              .join('')
+          : `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 12px;">No segregation data available.</td></tr>`
+      }
+    </tbody>
+  </table>
+
+  <!-- Deals Table -->
   <div class="section-title">Deals & Opportunities Audit (${deals.length} Recorded in Period)</div>
   <table>
     <thead>
       <tr>
-        <th style="width: 25%;">Deal / Opportunity</th>
-        <th style="width: 20%;">Client Contact</th>
+        <th style="width: 22%;">Deal / Opportunity</th>
+        <th style="width: 18%;">Client Contact</th>
+        <th style="width: 15%;">${segLabel}</th>
         <th style="width: 15%;">Stage</th>
         <th style="width: 10%;">Status</th>
-        <th style="width: 15%; text-align: right;">Value</th>
-        <th style="width: 15%; text-align: right;">${dateBasis === 'won' ? 'Won Date' : 'Created Date'}</th>
+        <th style="width: 10%; text-align: right;">Value</th>
+        <th style="width: 10%; text-align: right;">${dateBasis === 'won' ? 'Won Date' : 'Created Date'}</th>
       </tr>
     </thead>
     <tbody>
       ${
         deals.length > 0
           ? deals
-              .slice(0, 35)
+              .slice(0, 30)
               .map(
                 (d: any) => `
         <tr>
           <td><strong>${d.name || 'Untitled Deal'}</strong></td>
           <td>${d.contactName || d.contactPhone || 'Direct Client'}</td>
+          <td><span style="font-weight: 600; color: #4338ca;">${d.customFieldValue || d.nationality || 'Unspecified'}</span></td>
           <td>${d.stageName || 'Pipeline Stage'}</td>
           <td><span class="status-${(d.status || 'open').toLowerCase()}">${(d.status || 'open').toUpperCase()}</span></td>
           <td style="text-align: right; font-weight: 700;">${formatCurrency(d.monetaryValue || 0)}</td>
@@ -497,7 +582,7 @@ export default function Agent360Modal({
       `
               )
               .join('')
-          : `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 16px;">No deals found for the selected ${basisLabel}.</td></tr>`
+          : `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 16px;">No deals found for the selected ${basisLabel}.</td></tr>`
       }
     </tbody>
   </table>
@@ -518,7 +603,7 @@ export default function Agent360Modal({
     </thead>
     <tbody>
       ${appointments
-        .slice(0, 15)
+        .slice(0, 10)
         .map(
           (a: any) => `
         <tr>
@@ -632,85 +717,151 @@ export default function Agent360Modal({
           )}
         </div>
 
-        {/* Interactive Filter Toolbar: Won Date Basis & Date Range */}
-        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-200/80 my-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" /> Filter Basis:
-            </span>
+        {/* Interactive Filter Toolbar: Won Date Basis, Date Range & Custom Field Segregation */}
+        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-200/80 my-4 flex flex-col gap-3 shrink-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" /> Filter Basis:
+              </span>
 
-            {/* Won Date vs Created Date Toggle */}
-            <div className="inline-flex rounded-xl bg-white p-1 border border-gray-200 shadow-sm text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setDateBasis('won')}
-                className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                  dateBasis === 'won'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-                title="Filter metrics & deals by Won Date (when deals closed)"
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>🏆 Won Date</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDateBasis('created')}
-                className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                  dateBasis === 'created'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-                title="Filter metrics & deals by Created Date (when leads entered)"
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>📅 Created Date</span>
-              </button>
+              {/* Won Date vs Created Date Toggle */}
+              <div className="inline-flex rounded-xl bg-white p-1 border border-gray-200 shadow-sm text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setDateBasis('won')}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                    dateBasis === 'won'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Filter metrics & deals by Won Date (when deals closed)"
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>🏆 Won Date</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateBasis('created')}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                    dateBasis === 'created'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Filter metrics & deals by Created Date (when leads entered)"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>📅 Created Date</span>
+                </button>
+              </div>
+
+              {/* Date Range Presets Dropdown */}
+              <div className="relative inline-block">
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="appearance-none bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl pl-3 pr-8 py-1.5 shadow-sm hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  {DATE_RANGE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
 
-            {/* Date Range Presets Dropdown */}
-            <div className="relative inline-block">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="appearance-none bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl pl-3 pr-8 py-1.5 shadow-sm hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              >
-                {DATE_RANGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+            {/* Custom Date Range Picker Bar (if custom is selected) */}
+            {dateRange === 'custom' && (
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <span className="text-gray-400 font-medium">to</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCustomRange}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Custom Date Range Picker Bar (if custom is selected) */}
-          {dateRange === 'custom' && (
-            <div className="flex items-center gap-2 flex-wrap text-xs">
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <span className="text-gray-400 font-medium">to</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={handleApplyCustomRange}
-                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
-              >
-                Apply
-              </button>
+          {/* Secondary Row: Auto-Segregation by Custom Field / Nationality */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-indigo-900 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-indigo-600" /> Auto-Segregate Data:
+              </span>
+
+              {/* Segregation Field Selector */}
+              <div className="relative inline-block">
+                <select
+                  value={segregationOption}
+                  onChange={(e) => {
+                    setSegregationOption(e.target.value);
+                    setSelectedCategoryFilter(null);
+                  }}
+                  className="appearance-none bg-white border border-indigo-200 text-indigo-950 text-xs font-bold rounded-xl pl-3 pr-8 py-1 shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  {SEGREGATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-indigo-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* If Custom Key is selected, show custom text input */}
+              {segregationOption === 'custom_input' && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="e.g. {{contact.nationality}} or property_type"
+                    value={customFieldKey}
+                    onChange={(e) => setCustomFieldKey(e.target.value)}
+                    className="border border-indigo-200 rounded-lg px-2.5 py-1 text-xs text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[200px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onToast) onToast(`Applied segregation by "${customFieldKey || 'Custom Field'}"`);
+                    }}
+                    className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-bold text-[11px] shadow-sm hover:bg-indigo-700 transition-all"
+                  >
+                    Set
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Active category filter pill indicator */}
+            {selectedCategoryFilter && (
+              <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg text-indigo-800 text-[11px] font-semibold self-start sm:self-center">
+                <span>Filtered: <strong>{selectedCategoryFilter}</strong></span>
+                <button
+                  onClick={() => setSelectedCategoryFilter(null)}
+                  className="p-0.5 hover:bg-indigo-200 rounded text-indigo-600"
+                  title="Clear category filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -866,6 +1017,98 @@ export default function Agent360Modal({
                 </div>
               </div>
 
+              {/* AUTO-SEGREGATION BREAKDOWN PANEL (Nationality / Custom Field) */}
+              <div className="bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-indigo-600" /> Auto-Segregation Breakdown: {segregation.fieldLabel || 'Nationality'}
+                    </h4>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Segmented by {segregation.fieldKey || 'contact.nationality'} · Click any category to filter deals below
+                    </p>
+                  </div>
+                  {selectedCategoryFilter && (
+                    <button
+                      onClick={() => setSelectedCategoryFilter(null)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline self-start sm:self-auto"
+                    >
+                      Clear Category Filter
+                    </button>
+                  )}
+                </div>
+
+                {segregation.items && segregation.items.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {segregation.items.map((item: any) => {
+                      const isSelected = selectedCategoryFilter === item.value;
+                      return (
+                        <div
+                          key={item.value}
+                          onClick={() => {
+                            setSelectedCategoryFilter(isSelected ? null : item.value);
+                            setActiveTab('deals');
+                          }}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-[1.02]'
+                              : 'bg-white text-gray-800 border-gray-200 hover:border-indigo-300 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-1">
+                            <span
+                              className={`text-xs font-bold truncate max-w-[150px] ${
+                                isSelected ? 'text-white' : 'text-gray-900'
+                              }`}
+                              title={item.value}
+                            >
+                              {item.value}
+                            </span>
+                            <span
+                              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                isSelected
+                                  ? 'bg-indigo-700 text-white'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              }`}
+                            >
+                              {item.won} won
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex justify-between items-baseline text-[11px]">
+                            <span className={isSelected ? 'text-indigo-100' : 'text-gray-500'}>
+                              {item.leads} {item.leads === 1 ? 'lead' : 'leads'} ({item.conversion})
+                            </span>
+                            <span className={`font-extrabold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                              {formatCurrency(item.revenue)}
+                            </span>
+                          </div>
+
+                          {/* Progress bar of percentage */}
+                          <div
+                            className={`w-full h-1.5 rounded-full mt-2 overflow-hidden ${
+                              isSelected ? 'bg-indigo-700' : 'bg-gray-100'
+                            }`}
+                          >
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isSelected ? 'bg-white' : 'bg-indigo-500'
+                              }`}
+                              style={{ width: `${Math.min(100, Math.max(8, item.percentage))}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-gray-400 text-xs">
+                    <Globe className="w-6 h-6 mx-auto mb-1 text-gray-300" />
+                    No auto-segregated records found for this period.
+                  </div>
+                )}
+              </div>
+
               {/* Side-by-Side: Pipeline Breakdown & Tasks Health */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Dynamic Pipeline Breakdown */}
@@ -1001,29 +1244,50 @@ export default function Agent360Modal({
                   <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search deals, clients, or stages..."
+                    placeholder="Search deals, clients, stages, nationality..."
                     value={dealSearch}
                     onChange={(e) => setDealSearch(e.target.value)}
                     className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs font-semibold">
-                  <span className="text-gray-500 text-[11px]">Status:</span>
-                  {(['all', 'won', 'open', 'lost'] as const).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setDealStatusFilter(st)}
-                      className={`px-2.5 py-1 rounded-lg uppercase text-[10px] font-bold transition-all ${
-                        dealStatusFilter === st
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Category Filter Dropdown if segregation items exist */}
+                  {segregation.items && segregation.items.length > 0 && (
+                    <div className="relative inline-block">
+                      <select
+                        value={selectedCategoryFilter || ''}
+                        onChange={(e) => setSelectedCategoryFilter(e.target.value || null)}
+                        className="appearance-none bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold rounded-xl pl-2.5 pr-7 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        <option value="">All {segregation.fieldLabel || 'Nationalities'}</option>
+                        {segregation.items.map((it: any) => (
+                          <option key={it.value} value={it.value}>
+                            {it.value} ({it.leads})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3 h-3 text-indigo-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 text-xs font-semibold">
+                    <span className="text-gray-500 text-[11px]">Status:</span>
+                    {(['all', 'won', 'open', 'lost'] as const).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setDealStatusFilter(st)}
+                        className={`px-2.5 py-1 rounded-lg uppercase text-[10px] font-bold transition-all ${
+                          dealStatusFilter === st
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1035,6 +1299,7 @@ export default function Agent360Modal({
                       <tr>
                         <th className="py-2.5 px-3">Deal / Opportunity</th>
                         <th className="py-2.5 px-3">Client Contact</th>
+                        <th className="py-2.5 px-3">{segregation.fieldLabel || 'Nationality'}</th>
                         <th className="py-2.5 px-3">Pipeline Stage</th>
                         <th className="py-2.5 px-3">Status</th>
                         <th className="py-2.5 px-3 text-right">Value</th>
@@ -1048,7 +1313,7 @@ export default function Agent360Modal({
                         filteredDeals.map((d: any) => (
                           <tr key={d.id} className="hover:bg-blue-50/30 transition-colors">
                             <td className="py-2.5 px-3 font-bold text-gray-900">
-                              <div className="truncate max-w-[190px]" title={d.name}>
+                              <div className="truncate max-w-[170px]" title={d.name}>
                                 {d.name || 'Untitled Opportunity'}
                               </div>
                               <div className="text-[10px] text-gray-400 font-normal">
@@ -1056,14 +1321,20 @@ export default function Agent360Modal({
                               </div>
                             </td>
                             <td className="py-2.5 px-3 text-gray-600">
-                              <div className="font-semibold text-gray-900 truncate max-w-[150px]">
+                              <div className="font-semibold text-gray-900 truncate max-w-[140px]">
                                 {d.contactName || 'No Name'}
                               </div>
                               {d.contactPhone && (
                                 <div className="text-[10px] text-gray-400">{d.contactPhone}</div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600 truncate max-w-[130px]">
+                            <td className="py-2.5 px-3">
+                              <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-[11px] truncate max-w-[130px]" title={d.customFieldValue || d.nationality}>
+                                <Globe className="w-3 h-3 text-indigo-500 shrink-0" />
+                                {d.customFieldValue || d.nationality || 'Unspecified'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-gray-600 truncate max-w-[120px]">
                               {d.stageName || 'Pipeline Stage'}
                             </td>
                             <td className="py-2.5 px-3">
@@ -1089,7 +1360,7 @@ export default function Agent360Modal({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-gray-400">
+                          <td colSpan={7} className="py-12 text-center text-gray-400">
                             <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                             No deals match the filter criteria.
                           </td>
@@ -1292,8 +1563,10 @@ export default function Agent360Modal({
 
         {/* Footer Actions: Download PDF, Export CSV, Close */}
         <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="text-[11px] text-gray-400">
-            Filtered by: <strong className="text-gray-700">{dateBasis === 'won' ? 'Won Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})
+          <div className="text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
+            <span>Filtered by: <strong className="text-gray-700">{dateBasis === 'won' ? 'Won Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})</span>
+            <span>·</span>
+            <span>Segregated by: <strong className="text-indigo-700">{segregation.fieldLabel || 'Nationality'}</strong></span>
           </div>
 
           <div className="flex items-center gap-2 justify-end">

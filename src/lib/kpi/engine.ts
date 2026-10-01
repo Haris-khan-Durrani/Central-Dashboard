@@ -775,13 +775,176 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 }
 
 /**
- * Fetch 360° individual agent report with interactive date filtering, won date basis, deals, and appointments
+ * Smart inference of nationality / country from international phone dialing codes
+ */
+export function inferCountryFromPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const cleaned = phone.replace(/[^0-9+]/g, '');
+  if (!cleaned) return null;
+
+  const formatted = cleaned.startsWith('00')
+    ? '+' + cleaned.slice(2)
+    : cleaned.startsWith('+')
+    ? cleaned
+    : '+' + cleaned;
+
+  if (formatted.startsWith('+971')) return 'United Arab Emirates';
+  if (formatted.startsWith('+966')) return 'Saudi Arabia';
+  if (formatted.startsWith('+974')) return 'Qatar';
+  if (formatted.startsWith('+965')) return 'Kuwait';
+  if (formatted.startsWith('+968')) return 'Oman';
+  if (formatted.startsWith('+973')) return 'Bahrain';
+  if (formatted.startsWith('+44')) return 'United Kingdom';
+  if (formatted.startsWith('+1')) return 'United States / Canada';
+  if (formatted.startsWith('+91')) return 'India';
+  if (formatted.startsWith('+92')) return 'Pakistan';
+  if (formatted.startsWith('+20')) return 'Egypt';
+  if (formatted.startsWith('+961')) return 'Lebanon';
+  if (formatted.startsWith('+962')) return 'Jordan';
+  if (formatted.startsWith('+33')) return 'France';
+  if (formatted.startsWith('+49')) return 'Germany';
+  if (formatted.startsWith('+39')) return 'Italy';
+  if (formatted.startsWith('+34')) return 'Spain';
+  if (formatted.startsWith('+7')) return 'Russia';
+  if (formatted.startsWith('+90')) return 'Turkey';
+  if (formatted.startsWith('+86')) return 'China';
+  if (formatted.startsWith('+65')) return 'Singapore';
+  if (formatted.startsWith('+60')) return 'Malaysia';
+  if (formatted.startsWith('+61')) return 'Australia';
+  if (formatted.startsWith('+27')) return 'South Africa';
+  if (formatted.startsWith('+234')) return 'Nigeria';
+  if (formatted.startsWith('+41')) return 'Switzerland';
+  if (formatted.startsWith('+31')) return 'Netherlands';
+  if (formatted.startsWith('+46')) return 'Sweden';
+  if (formatted.startsWith('+47')) return 'Norway';
+  if (formatted.startsWith('+45')) return 'Denmark';
+  if (formatted.startsWith('+353')) return 'Ireland';
+  if (formatted.startsWith('+32')) return 'Belgium';
+  if (formatted.startsWith('+43')) return 'Austria';
+  if (formatted.startsWith('+48')) return 'Poland';
+  if (formatted.startsWith('+380')) return 'Ukraine';
+  if (formatted.startsWith('+81')) return 'Japan';
+  if (formatted.startsWith('+82')) return 'South Korea';
+  if (formatted.startsWith('+63')) return 'Philippines';
+  if (formatted.startsWith('+880')) return 'Bangladesh';
+  if (formatted.startsWith('+94')) return 'Sri Lanka';
+  if (formatted.startsWith('+977')) return 'Nepal';
+  if (formatted.startsWith('+212')) return 'Morocco';
+  if (formatted.startsWith('+213')) return 'Algeria';
+  if (formatted.startsWith('+216')) return 'Tunisia';
+  if (formatted.startsWith('+254')) return 'Kenya';
+  if (formatted.startsWith('+55')) return 'Brazil';
+  if (formatted.startsWith('+52')) return 'Mexico';
+  if (formatted.startsWith('+54')) return 'Argentina';
+  if (formatted.startsWith('+57')) return 'Colombia';
+  if (formatted.startsWith('+64')) return 'New Zealand';
+  if (formatted.startsWith('+84')) return 'Vietnam';
+  if (formatted.startsWith('+66')) return 'Thailand';
+
+  return null;
+}
+
+/**
+ * Extracts custom field value from opportunity, contact, or smart inferences
+ */
+export function extractCustomFieldValue(opp: any, fieldKey: string = 'contact.nationality'): string {
+  const normalizedKey = fieldKey.replace(/[{}]/g, '').trim().toLowerCase();
+
+  // Direct fields
+  if (normalizedKey === 'source' || normalizedKey === 'contact.source') {
+    return opp.source || 'Direct';
+  }
+  if (normalizedKey === 'campaign' || normalizedKey === 'contact.campaign') {
+    return opp.contact?.campaign || 'General';
+  }
+  if (normalizedKey === 'stage' || normalizedKey === 'pipeline_stage') {
+    return opp.stage?.name || 'Pipeline Stage';
+  }
+  if (normalizedKey === 'pipeline') {
+    return opp.pipeline?.name || 'Main Pipeline';
+  }
+
+  // Nationality / Country specific resolution
+  if (normalizedKey.includes('nationality') || normalizedKey.includes('country')) {
+    if (opp.nationality && opp.nationality.trim()) return opp.nationality.trim();
+    if (opp.contact?.nationality && opp.contact.nationality.trim()) return opp.contact.nationality.trim();
+
+    const checkJson = (cf: any) => {
+      if (!cf) return null;
+      if (typeof cf === 'object' && !Array.isArray(cf)) {
+        for (const [k, v] of Object.entries(cf)) {
+          if (k.toLowerCase().includes('nationality') || k.toLowerCase().includes('country')) {
+            if (v && typeof v === 'string' && v.trim()) return v.trim();
+          }
+        }
+      }
+      if (Array.isArray(cf)) {
+        for (const item of cf) {
+          const keyName = String(item.key || item.name || item.id || '').toLowerCase();
+          if (keyName.includes('nationality') || keyName.includes('country')) {
+            const val = item.value || item.field_value;
+            if (val && typeof val === 'string' && val.trim()) return val.trim();
+          }
+        }
+      }
+      return null;
+    };
+
+    const fromOppJson = checkJson(opp.customFields);
+    if (fromOppJson) return fromOppJson;
+
+    const fromContactJson = checkJson(opp.contact?.customFields);
+    if (fromContactJson) return fromContactJson;
+
+    // Smart fallback: Phone country code
+    const phone = opp.contact?.phone || null;
+    const countryFromPhone = inferCountryFromPhone(phone);
+    if (countryFromPhone) return countryFromPhone;
+
+    return 'Unspecified';
+  }
+
+  // General custom field lookup
+  const searchKey = normalizedKey.replace(/^contact\./, '').replace(/^deal\./, '');
+  const findInObj = (cf: any) => {
+    if (!cf) return null;
+    if (typeof cf === 'object' && !Array.isArray(cf)) {
+      for (const [k, v] of Object.entries(cf)) {
+        if (k.toLowerCase() === normalizedKey || k.toLowerCase() === searchKey) {
+          if (v !== undefined && v !== null) return String(v).trim();
+        }
+      }
+    }
+    if (Array.isArray(cf)) {
+      for (const item of cf) {
+        const keyName = String(item.key || item.name || item.id || '').toLowerCase();
+        if (keyName === normalizedKey || keyName === searchKey) {
+          const val = item.value !== undefined ? item.value : item.field_value;
+          if (val !== undefined && val !== null) return String(val).trim();
+        }
+      }
+    }
+    return null;
+  };
+
+  const val1 = findInObj(opp.customFields);
+  if (val1) return val1;
+
+  const val2 = findInObj(opp.contact?.customFields);
+  if (val2) return val2;
+
+  return 'Unspecified';
+}
+
+/**
+ * Fetch 360° individual agent report with interactive date filtering, won date basis, custom field auto-segregation, deals, and appointments
  */
 export interface Agent360FilterOptions {
   dateRange?: string; // 'today', 'yesterday', 'last_7', 'this_month', 'last_month', 'last_30', 'this_quarter', 'this_year', 'all', 'custom'
   startDate?: string; // YYYY-MM-DD
   endDate?: string;   // YYYY-MM-DD
   dateBasis?: string; // 'won', 'created', 'updated'
+  segregationField?: string; // e.g. 'contact.nationality', '{{contact.nationality}}', 'source', 'campaign'
 }
 
 export async function getAgent360Report(
@@ -791,10 +954,11 @@ export async function getAgent360Report(
 ) {
   const dateRange = options?.dateRange || 'this_month';
   const dateBasis = (options?.dateBasis || 'won').toLowerCase();
+  const segregationField = options?.segregationField || 'contact.nationality';
   const customStart = options?.startDate;
   const customEnd = options?.endDate;
 
-  const cacheKey = `agent360:${locationId}:${ghlUserId}:${dateRange}:${customStart || ''}:${customEnd || ''}:${dateBasis}`;
+  const cacheKey = `agent360:${locationId}:${ghlUserId}:${dateRange}:${customStart || ''}:${customEnd || ''}:${dateBasis}:${segregationField}`;
   const cached = fastCache.get<any>(cacheKey);
   if (cached) return cached;
 
@@ -894,24 +1058,30 @@ export async function getAgent360Report(
   let filteredLeadsOpps: typeof allLifetimeOpps = [];
   let stageBreakdown: Record<string, number> = {};
 
-  const formatDeal = (o: any) => ({
-    id: o.id,
-    ghlOpportunityId: o.ghlOpportunityId,
-    name: o.name || 'Untitled Deal',
-    contactName: o.contact
-      ? `${o.contact.firstName || ''} ${o.contact.lastName || ''}`.trim() || o.name
-      : o.name,
-    contactPhone: o.contact?.phone || null,
-    contactEmail: o.contact?.email || null,
-    pipelineName: o.pipeline?.name || 'Pipeline',
-    stageName: o.stage?.name || 'Stage',
-    monetaryValue: o.monetaryValue || 0,
-    status: (o.status || 'open').toLowerCase(),
-    source: o.source || 'Direct',
-    createdAt: o.createdAt.toISOString(),
-    wonAt: o.wonAt ? o.wonAt.toISOString() : null,
-    updatedAt: o.updatedAt.toISOString(),
-  });
+  const formatDeal = (o: any) => {
+    const customVal = extractCustomFieldValue(o, segregationField);
+    const nationalityVal = extractCustomFieldValue(o, 'contact.nationality');
+    return {
+      id: o.id,
+      ghlOpportunityId: o.ghlOpportunityId,
+      name: o.name || 'Untitled Deal',
+      contactName: o.contact
+        ? `${o.contact.firstName || ''} ${o.contact.lastName || ''}`.trim() || o.name
+        : o.name,
+      contactPhone: o.contact?.phone || null,
+      contactEmail: o.contact?.email || null,
+      pipelineName: o.pipeline?.name || 'Pipeline',
+      stageName: o.stage?.name || 'Stage',
+      monetaryValue: o.monetaryValue || 0,
+      status: (o.status || 'open').toLowerCase(),
+      source: o.source || 'Direct',
+      nationality: nationalityVal,
+      customFieldValue: customVal,
+      createdAt: o.createdAt.toISOString(),
+      wonAt: o.wonAt ? o.wonAt.toISOString() : null,
+      updatedAt: o.updatedAt.toISOString(),
+    };
+  };
 
   if (dateBasis === 'won') {
     // WON DATE BASIS: Filter by wonAt
@@ -1056,6 +1226,43 @@ export async function getAgent360Report(
     ? Math.min(100, Math.round((wonRevenue / targetRevenue) * 100))
     : 0;
 
+  // 5. Custom Field Auto-Segregation Calculation
+  const oppsForSegregation = dateBasis === 'won' && filteredWonOpps.length > 0
+    ? filteredWonOpps
+    : filteredLeadsOpps.length > 0
+    ? filteredLeadsOpps
+    : allLifetimeOpps;
+
+  const segregationMap: Record<string, { leads: number; won: number; revenue: number }> = {};
+  for (const o of oppsForSegregation) {
+    const val = extractCustomFieldValue(o, segregationField) || 'Unspecified';
+    if (!segregationMap[val]) {
+      segregationMap[val] = { leads: 0, won: 0, revenue: 0 };
+    }
+    segregationMap[val].leads++;
+    if ((o.status || '').toLowerCase() === 'won') {
+      segregationMap[val].won++;
+      segregationMap[val].revenue += o.monetaryValue || 0;
+    }
+  }
+
+  const totalSegregated = oppsForSegregation.length;
+  const segregationItems = Object.entries(segregationMap)
+    .map(([val, stats]) => ({
+      value: val,
+      leads: stats.leads,
+      won: stats.won,
+      revenue: stats.revenue,
+      conversion: stats.leads > 0 ? `${((stats.won / stats.leads) * 100).toFixed(1)}%` : '0.0%',
+      percentage: totalSegregated > 0 ? Math.round((stats.leads / totalSegregated) * 100) : 0,
+    }))
+    .sort((a, b) => (b.won !== a.won ? b.won - a.won : b.leads - a.leads));
+
+  const cleanFieldLabel =
+    segregationField === 'contact.nationality' || segregationField === '{{contact.nationality}}'
+      ? 'Nationality'
+      : segregationField.replace(/[{}]/g, '');
+
   const result = {
     user: {
       id: user.id,
@@ -1076,6 +1283,7 @@ export async function getAgent360Report(
       startDate: startDate ? startDate.toISOString() : null,
       endDate: endDate ? endDate.toISOString() : null,
       dateBasis,
+      segregationField,
     },
     metrics: {
       leads: leadsCount,
@@ -1102,6 +1310,12 @@ export async function getAgent360Report(
       stageBreakdown: lifetimeStageBreakdown,
     },
     stageBreakdown: Object.keys(stageBreakdown).length > 0 ? stageBreakdown : lifetimeStageBreakdown,
+    segregation: {
+      fieldKey: segregationField,
+      fieldLabel: cleanFieldLabel,
+      items: segregationItems,
+      totalCategorized: totalSegregated,
+    },
     deals,
     appointments: formattedAppointments,
     tasks: formattedTasks,
