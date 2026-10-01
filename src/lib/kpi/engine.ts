@@ -234,6 +234,132 @@ export function normalizeLeadSource(rawSource: string | null | undefined): { key
   return { key: lower, displayName: titleCased };
 }
 
+export function getTimezoneParts(date: Date, timeZone = 'Asia/Dubai') {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const map: Record<string, string> = {};
+    for (const p of parts) map[p.type] = p.value;
+    return {
+      year: parseInt(map.year, 10),
+      month: parseInt(map.month, 10), // 1-12
+      day: parseInt(map.day, 10),
+      hour: parseInt(map.hour === '24' ? '0' : map.hour, 10),
+      minute: parseInt(map.minute, 10),
+      second: parseInt(map.second, 10),
+    };
+  } catch (err) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+      second: date.getSeconds(),
+    };
+  }
+}
+
+export function createTzDate(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  ms = 0,
+  timeZone = 'Asia/Dubai'
+): Date {
+  try {
+    const approx = new Date(Date.UTC(year, month - 1, day, hour, minute, second, ms));
+    const parts = getTimezoneParts(approx, timeZone);
+    const asTzUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, approx.getUTCMilliseconds());
+    const offset = approx.getTime() - asTzUtc;
+    return new Date(approx.getTime() + offset);
+  } catch (err) {
+    return new Date(year, month - 1, day, hour, minute, second, ms);
+  }
+}
+
+export function calculateTzDateRange(
+  dateRange: string = 'this_month',
+  customStart?: string,
+  customEnd?: string,
+  timeZone: string = 'Asia/Dubai'
+): { startDate?: Date; endDate?: Date; todayStart: Date; todayEnd: Date; tzDateStr: string } {
+  const now = new Date();
+  const local = getTimezoneParts(now, timeZone);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const tzDateStr = `${local.year}-${pad(local.month)}-${pad(local.day)}`;
+
+  const todayStart = createTzDate(local.year, local.month, local.day, 0, 0, 0, 0, timeZone);
+  const todayEnd = createTzDate(local.year, local.month, local.day, 23, 59, 59, 999, timeZone);
+
+  let startDate: Date | undefined;
+  let endDate: Date | undefined = todayEnd;
+
+  if (dateRange === 'today') {
+    startDate = todayStart;
+    endDate = todayEnd;
+  } else if (dateRange === 'yesterday') {
+    const prevDate = new Date(Date.UTC(local.year, local.month - 1, local.day - 1));
+    const y = prevDate.getUTCFullYear();
+    const m = prevDate.getUTCMonth() + 1;
+    const d = prevDate.getUTCDate();
+    startDate = createTzDate(y, m, d, 0, 0, 0, 0, timeZone);
+    endDate = createTzDate(y, m, d, 23, 59, 59, 999, timeZone);
+  } else if (dateRange === 'last_7') {
+    const d7 = new Date(Date.UTC(local.year, local.month - 1, local.day - 7));
+    startDate = createTzDate(d7.getUTCFullYear(), d7.getUTCMonth() + 1, d7.getUTCDate(), 0, 0, 0, 0, timeZone);
+    endDate = todayEnd;
+  } else if (dateRange === 'this_month') {
+    startDate = createTzDate(local.year, local.month, 1, 0, 0, 0, 0, timeZone);
+    endDate = todayEnd;
+  } else if (dateRange === 'last_month') {
+    const prevMonthDate = new Date(Date.UTC(local.year, local.month - 2, 1));
+    const lmYear = prevMonthDate.getUTCFullYear();
+    const lmMonth = prevMonthDate.getUTCMonth() + 1;
+    const lastDayOfLm = new Date(Date.UTC(local.year, local.month - 1, 0)).getUTCDate();
+    startDate = createTzDate(lmYear, lmMonth, 1, 0, 0, 0, 0, timeZone);
+    endDate = createTzDate(lmYear, lmMonth, lastDayOfLm, 23, 59, 59, 999, timeZone);
+  } else if (dateRange === 'last_30') {
+    const d30 = new Date(Date.UTC(local.year, local.month - 1, local.day - 30));
+    startDate = createTzDate(d30.getUTCFullYear(), d30.getUTCMonth() + 1, d30.getUTCDate(), 0, 0, 0, 0, timeZone);
+    endDate = todayEnd;
+  } else if (dateRange === 'this_quarter' || dateRange === 'q3') {
+    const qMonth = Math.floor((local.month - 1) / 3) * 3 + 1;
+    const qEndDate = new Date(Date.UTC(local.year, qMonth + 2, 0));
+    startDate = createTzDate(local.year, qMonth, 1, 0, 0, 0, 0, timeZone);
+    endDate = createTzDate(local.year, qMonth + 2, qEndDate.getUTCDate(), 23, 59, 59, 999, timeZone);
+  } else if (dateRange === 'this_year') {
+    startDate = createTzDate(local.year, 1, 1, 0, 0, 0, 0, timeZone);
+    endDate = createTzDate(local.year, 12, 31, 23, 59, 59, 999, timeZone);
+  } else if (dateRange === 'all') {
+    startDate = undefined;
+    endDate = undefined;
+  } else if (dateRange === 'custom') {
+    if (customStart) {
+      const parts = customStart.split('-').map(Number);
+      startDate = createTzDate(parts[0], parts[1], parts[2], 0, 0, 0, 0, timeZone);
+    }
+    if (customEnd) {
+      const parts = customEnd.split('-').map(Number);
+      endDate = createTzDate(parts[0], parts[1], parts[2], 23, 59, 59, 999, timeZone);
+    }
+  }
+
+  return { startDate, endDate, todayStart, todayEnd, tzDateStr };
+}
+
 export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<CommandCenterData> {
   const {
     locationId,
@@ -245,10 +371,6 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     agentId = 'all',
   } = filters;
 
-  const cacheKey = `loc:${locationId}:cc:${dateRange}:${customStart || ''}:${customEnd || ''}:${dateBasis}:${pipelineId}:${agentId}`;
-  const cached = fastCache.get<CommandCenterData>(cacheKey);
-  if (cached) return cached;
-
   const loc = await prisma.ghlLocation.findUnique({
     where: { locationId },
   });
@@ -257,47 +379,19 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     throw new Error(`Location ${locationId} not found.`);
   }
 
-  const now = new Date();
-  let startDate: Date | undefined;
-  let endDate: Date | undefined = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const timeZone = loc.timezone || 'Asia/Dubai';
+  const { startDate, endDate, todayStart, todayEnd, tzDateStr } = calculateTzDateRange(
+    dateRange,
+    customStart,
+    customEnd,
+    timeZone
+  );
 
-  // Parse date ranges
-  if (dateRange === 'today') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  } else if (dateRange === 'yesterday') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-  } else if (dateRange === 'last_7') {
-    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (dateRange === 'this_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  } else if (dateRange === 'last_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  } else if (dateRange === 'last_30') {
-    startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (dateRange === 'this_quarter' || dateRange === 'q3') {
-    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-    startDate = new Date(now.getFullYear(), quarterMonth, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), quarterMonth + 3, 0, 23, 59, 59, 999);
-  } else if (dateRange === 'this_year') {
-    startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-  } else if (dateRange === 'all') {
-    startDate = undefined;
-    endDate = undefined;
-  } else if (dateRange === 'custom') {
-    if (customStart) {
-      const parts = customStart.split('-');
-      startDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
-    }
-    if (customEnd) {
-      const parts = customEnd.split('-');
-      endDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 23, 59, 59, 999);
-    }
-  }
+  const cacheKey = `loc:${locationId}:cc:${dateRange}:${customStart || ''}:${customEnd || ''}:${dateBasis}:${pipelineId}:${agentId}:${tzDateStr}`;
+  const cached = fastCache.get<CommandCenterData>(cacheKey);
+  if (cached) return cached;
+
+  const now = new Date();
 
   // Date basis field mapping
   const dateField =
@@ -437,8 +531,8 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
   const conversionRate = `${conversionRateNum.toFixed(1)}%`;
 
   // 2. Task metrics
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const startOfDay = todayStart;
+  const endOfDay = todayEnd;
 
   const tasksPending = pendingTasks.length;
   const tasksOverdue = pendingTasks.filter((t) => t.dueDate && t.dueDate < now).length;
@@ -1235,47 +1329,15 @@ export async function getAgent360Report(
     select: { currency: true, name: true, timezone: true },
   });
 
-  const now = new Date();
-  let startDate: Date | undefined;
-  let endDate: Date | undefined = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const timeZone = loc?.timezone || 'Asia/Dubai';
+  const { startDate, endDate, todayStart, todayEnd } = calculateTzDateRange(
+    dateRange,
+    customStart,
+    customEnd,
+    timeZone
+  );
 
-  // Parse date ranges
-  if (dateRange === 'today') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  } else if (dateRange === 'yesterday') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-  } else if (dateRange === 'last_7') {
-    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (dateRange === 'this_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  } else if (dateRange === 'last_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  } else if (dateRange === 'last_30') {
-    startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (dateRange === 'this_quarter' || dateRange === 'q3') {
-    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-    startDate = new Date(now.getFullYear(), quarterMonth, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), quarterMonth + 3, 0, 23, 59, 59, 999);
-  } else if (dateRange === 'this_year') {
-    startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-  } else if (dateRange === 'all') {
-    startDate = undefined;
-    endDate = undefined;
-  } else if (dateRange === 'custom') {
-    if (customStart) {
-      const parts = customStart.split('-');
-      startDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
-    }
-    if (customEnd) {
-      const parts = customEnd.split('-');
-      endDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 23, 59, 59, 999);
-    }
-  }
+  const now = new Date();
 
   // 1. Fetch all lifetime opportunities for this agent
   const allLifetimeOpps = await prisma.opportunity.findMany({
@@ -1419,8 +1481,8 @@ export async function getAgent360Report(
     take: 50,
   });
 
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const startOfDay = todayStart;
+  const endOfDay = todayEnd;
 
   const tasksToday = dbTasks.filter(
     (t) => !t.completed && t.dueDate && t.dueDate >= startOfDay && t.dueDate <= endOfDay
