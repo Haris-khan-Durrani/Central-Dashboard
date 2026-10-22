@@ -560,7 +560,7 @@ export default function PublicSharePage({ params }: PublicSharePageProps) {
           locationId={location?.locationId}
           shareToken={token}
           dateRangeLabel={dateRange}
-          initialDateBasis={dateBasis === 'won' ? 'won' : 'created'}
+          initialDateBasis={dateBasis === 'won' ? 'won' : dateBasis === 'updated' ? 'updated' : 'created'}
           showCallStats={false}
           onClose={() => setSelectedAgent(null)}
           onToast={() => {}}

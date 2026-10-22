@@ -34,7 +34,7 @@ interface Agent360ModalProps {
   locationId?: string;
   shareToken?: string;
   dateRangeLabel?: string;
-  initialDateBasis?: 'created' | 'won';
+  initialDateBasis?: 'created' | 'won' | 'updated';
   showCallStats?: boolean;
   onClose: () => void;
   onToast?: (msg: string) => void;
@@ -79,10 +79,19 @@ export default function Agent360Modal({
   }, [dateRangeLabel]);
 
   const [dateRange, setDateRange] = useState<string>(initialRange);
-  const [dateBasis, setDateBasis] = useState<'created' | 'won'>(initialDateBasis || 'created');
+  const [dateBasis, setDateBasis] = useState<'created' | 'won' | 'updated'>(
+    initialDateBasis === 'won' ? 'won' : initialDateBasis === 'updated' ? 'updated' : 'created'
+  );
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [isApplyingCustom, setIsApplyingCustom] = useState<boolean>(false);
+
+  // Keep dateBasis in sync if initialDateBasis or agent changes
+  useEffect(() => {
+    if (initialDateBasis) {
+      setDateBasis(initialDateBasis === 'won' ? 'won' : initialDateBasis === 'updated' ? 'updated' : 'created');
+    }
+  }, [initialDateBasis, agent?.ghlUserId]);
 
   // Custom field segregation state (Default: Nationality)
   const [segregationOption, setSegregationOption] = useState<string>('contact.nationality');
@@ -239,7 +248,12 @@ export default function Agent360Modal({
   const handleExportCsv = () => {
     try {
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
-      const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
+      const basisLabel =
+        dateBasis === 'won'
+          ? 'Won Date Basis'
+          : dateBasis === 'updated'
+          ? 'Updated Date Basis'
+          : 'Created Date Basis';
 
       const rows: (string | number)[][] = [
         ['Profile', 'Agent Name', agent.name],
@@ -273,7 +287,7 @@ export default function Agent360Modal({
         ['Pipeline Breakdown', 'Stage Name', 'Deals Count'],
         ...stageEntries.map(([stage, count]) => ['Pipeline Breakdown', stage, count]),
         ['', '', ''],
-        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', 'Won Date', cleanSegLabel, 'Source'],
+        ['Deals Audit List', 'Deal Name', 'Client', 'Stage', 'Value', 'Status', dateBasis === 'won' ? 'Won Date' : dateBasis === 'updated' ? 'Updated Date' : 'Created Date', cleanSegLabel, 'Source'],
         ...deals.map((d: any) => [
           'Deal',
           d.name || 'Untitled',
@@ -281,7 +295,11 @@ export default function Agent360Modal({
           d.stageName || 'N/A',
           `${activeCurrency} ${d.monetaryValue || 0}`,
           d.status || 'open',
-          d.wonAt ? d.wonAt.slice(0, 10) : 'N/A',
+          dateBasis === 'won'
+            ? (d.wonAt ? d.wonAt.slice(0, 10) : 'N/A')
+            : dateBasis === 'updated'
+            ? (d.updatedAt ? d.updatedAt.slice(0, 10) : 'N/A')
+            : (d.createdAt ? d.createdAt.slice(0, 10) : 'N/A'),
           d.customFieldValue || d.nationality || 'Unspecified',
           d.source || 'Direct',
         ]),
@@ -315,7 +333,12 @@ export default function Agent360Modal({
     setIsGeneratingPdf(true);
     try {
       const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange;
-      const basisLabel = dateBasis === 'won' ? 'Won Date Basis' : 'Created Date Basis';
+      const basisLabel =
+        dateBasis === 'won'
+          ? 'Won Date Basis'
+          : dateBasis === 'updated'
+          ? 'Updated Date Basis'
+          : 'Created Date Basis';
       const generatedAt = new Date().toLocaleString();
 
       const totalPipelineDeals = stageEntries.reduce((acc, [, count]) => acc + count, 0);
@@ -1080,12 +1103,12 @@ export default function Agent360Modal({
                 <SlidersHorizontal className="w-4 h-4 text-blue-600" /> Filter Basis:
               </span>
 
-              {/* Created Date vs Won Date Toggle */}
+              {/* Created Date vs Updated Date vs Won Date Toggle */}
               <div className="inline-flex rounded-xl bg-white p-1 border border-gray-200 shadow-sm text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setDateBasis('created')}
-                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                     dateBasis === 'created'
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
@@ -1097,8 +1120,21 @@ export default function Agent360Modal({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setDateBasis('updated')}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                    dateBasis === 'updated'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Filter deals by Last Updated Date (when deals were modified)"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>🔄 Updated Date</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setDateBasis('won')}
-                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                     dateBasis === 'won'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
@@ -1293,7 +1329,7 @@ export default function Agent360Modal({
                     {formatCurrency(metrics.revenue)}
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
-                    {dateBasis === 'won' ? 'Won in selected period' : 'Won from period leads'}
+                    {dateBasis === 'won' ? 'Won in selected period' : dateBasis === 'updated' ? 'Won from updated leads' : 'Won from period leads'}
                   </div>
                 </div>
 
@@ -1343,7 +1379,7 @@ export default function Agent360Modal({
               <div className="bg-gradient-to-r from-blue-50 via-white to-emerald-50/60 rounded-2xl p-5 border border-blue-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-                    Revenue Target Performance ({dateBasis === 'won' ? 'Won in Period' : 'Period Revenue'})
+                    Revenue Target Performance ({dateBasis === 'won' ? 'Won in Period' : dateBasis === 'updated' ? 'Updated Period Revenue' : 'Period Revenue'})
                   </div>
                   <div className="text-2xl font-black text-gray-900">
                     {formatCurrency(metrics.revenue)}
@@ -1662,7 +1698,7 @@ export default function Agent360Modal({
                         <th className="py-3 px-3.5">Status</th>
                         <th className="py-3 px-3.5 text-right">Value</th>
                         <th className="py-3 px-3.5 text-right">
-                          {dateBasis === 'won' ? 'Won Date' : 'Created Date'}
+                          {dateBasis === 'won' ? 'Won Date' : dateBasis === 'updated' ? 'Updated Date' : 'Created Date'}
                         </th>
                       </tr>
                     </thead>
@@ -1712,7 +1748,11 @@ export default function Agent360Modal({
                               {formatCurrency(d.monetaryValue || 0)}
                             </td>
                             <td className="py-3 px-3.5 text-right text-gray-500 font-medium">
-                              {(d.wonAt || d.createdAt || '').slice(0, 10)}
+                              {dateBasis === 'won'
+                                ? (d.wonAt || d.updatedAt || d.createdAt || '').slice(0, 10)
+                                : dateBasis === 'updated'
+                                ? (d.updatedAt || d.createdAt || '').slice(0, 10)
+                                : (d.createdAt || '').slice(0, 10)}
                             </td>
                           </tr>
                         ))
@@ -1922,7 +1962,7 @@ export default function Agent360Modal({
         {/* Footer Actions: Download PDF, Export CSV, Close */}
         <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shrink-0">
           <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
-            <span>Filtered by: <strong className="text-gray-800">{dateBasis === 'won' ? 'Won Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})</span>
+            <span>Filtered by: <strong className="text-gray-800">{dateBasis === 'won' ? 'Won Date' : dateBasis === 'updated' ? 'Updated Date' : 'Created Date'}</strong> ({DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label || dateRange})</span>
             <span>·</span>
             <span>Segregated by: <strong className="text-indigo-700">{cleanSegLabel}</strong></span>
           </div>

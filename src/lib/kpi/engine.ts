@@ -1416,6 +1416,12 @@ export async function getAgent360Report(
       return true;
     });
 
+    filteredWonOpps.sort((a, b) => {
+      const bDate = new Date(b.wonAt || b.updatedAt).getTime();
+      const aDate = new Date(a.wonAt || a.updatedAt).getTime();
+      return bDate - aDate;
+    });
+
     // Also get leads created in the same window to calculate conversion & pipeline activity
     filteredLeadsOpps = allLifetimeOpps.filter((o) => {
       if (startDate && o.createdAt < startDate) return false;
@@ -1436,6 +1442,10 @@ export async function getAgent360Report(
       if (endDate && targetDate > endDate) return false;
       return true;
     });
+
+    if (dateBasis === 'updated') {
+      filteredLeadsOpps.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    }
 
     filteredWonOpps = filteredLeadsOpps.filter((o) => (o.status || '').toLowerCase() === 'won');
 
