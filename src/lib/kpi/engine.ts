@@ -68,6 +68,18 @@ export interface CommandCenterData {
     bookingsToday: number;
     isLive: boolean;
     stageBreakdown: Record<string, number>;
+    monthLeads: number;
+    monthWon: number;
+    monthLost: number;
+    monthRevenue: number;
+    monthConversion: string;
+    monthExpectedProgress: number;
+    projectedRevenue: number;
+    openDeals: number;
+    pipelineValue: number;
+    rank: number;
+    currentDay: number;
+    daysInMonth: number;
   }>;
   upcomingBookings: Array<{
     id: number;
@@ -429,8 +441,48 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     oppWhere.assignedTo = agentId;
   }
 
+  // Month-To-Date (MTD) date boundaries in location timezone
+  const local = getTimezoneParts(now, timeZone);
+  const currentMonthStart = createTzDate(local.year, local.month, 1, 0, 0, 0, 0, timeZone);
+  const currentMonthEnd = todayEnd;
+  const daysInMonth = new Date(Date.UTC(local.year, local.month, 0)).getUTCDate();
+  const currentDay = Math.min(daysInMonth, Math.max(1, local.day));
+  const monthExpectedProgress = Math.min(100, Math.round((currentDay / daysInMonth) * 100));
+
+  const isMonthRange = dateRange === 'this_month' && !customStart && !customEnd;
+
+  const monthOppWhere: any = {
+    locationId,
+    [dateField]: { gte: currentMonthStart, lte: currentMonthEnd },
+  };
+  if (selectedPipelineIdNum !== undefined) {
+    monthOppWhere.pipelineId = selectedPipelineIdNum;
+  }
+  if (agentId !== 'all') {
+    monthOppWhere.assignedTo = agentId;
+  }
+
+  const openOppWhere: any = {
+    locationId,
+    status: 'open',
+  };
+  if (selectedPipelineIdNum !== undefined) {
+    openOppWhere.pipelineId = selectedPipelineIdNum;
+  }
+  if (agentId !== 'all') {
+    openOppWhere.assignedTo = agentId;
+  }
+
   // Fetch data in parallel for maximum speed
-  const [opportunities, dbUsers, rawPipelines, pendingTasks, dbAppointments] = await Promise.all([
+  const [
+    opportunities,
+    dbUsers,
+    rawPipelines,
+    pendingTasks,
+    dbAppointments,
+    monthOpportunities,
+    activeOpenOpps,
+  ] = await Promise.all([
     prisma.opportunity.findMany({
       where: oppWhere,
       select: {
@@ -504,6 +556,28 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
         },
       },
       orderBy: { startTime: 'asc' },
+    }),
+    isMonthRange
+      ? Promise.resolve(null)
+      : prisma.opportunity.findMany({
+          where: monthOppWhere,
+          select: {
+            id: true,
+            status: true,
+            monetaryValue: true,
+            assignedTo: true,
+            pipelineId: true,
+            stageId: true,
+            createdAt: true,
+            wonAt: true,
+          },
+        }),
+    prisma.opportunity.findMany({
+      where: openOppWhere,
+      select: {
+        assignedTo: true,
+        monetaryValue: true,
+      },
     }),
   ]);
 
@@ -687,6 +761,39 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
     agentStageBreakdownMap[u][stageName] = (agentStageBreakdownMap[u][stageName] || 0) + 1;
   }
 
+  // Month-To-Date (MTD) opportunity stats
+  const effectiveMonthOpps = isMonthRange ? opportunities : (monthOpportunities || []);
+  const agentMonthOppMap: Record<
+    string,
+    { total: number; won: number; lost: number; revenue: number }
+  > = {};
+
+  for (const opp of effectiveMonthOpps) {
+    const u = opp.assignedTo || 'unassigned';
+    if (!agentMonthOppMap[u]) {
+      agentMonthOppMap[u] = { total: 0, won: 0, lost: 0, revenue: 0 };
+    }
+    agentMonthOppMap[u].total++;
+    const st = (opp.status || 'open').toLowerCase();
+    if (st === 'won') {
+      agentMonthOppMap[u].won++;
+      agentMonthOppMap[u].revenue += (opp.monetaryValue || 0);
+    } else if (st === 'lost' || st === 'abandoned') {
+      agentMonthOppMap[u].lost++;
+    }
+  }
+
+  // Active open pipeline deals & monetary value
+  const agentOpenMap: Record<string, { count: number; value: number }> = {};
+  for (const opp of activeOpenOpps) {
+    const u = opp.assignedTo || 'unassigned';
+    if (!agentOpenMap[u]) {
+      agentOpenMap[u] = { count: 0, value: 0 };
+    }
+    agentOpenMap[u].count++;
+    agentOpenMap[u].value += (opp.monetaryValue || 0);
+  }
+
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const targets = await prisma.kpiTarget.findMany({ where: { locationId } });
   const targetMap = new Map<string, number>();
@@ -698,14 +805,30 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
 
   const agents = dbUsers.map((u) => {
     const stats = agentOppMap[u.ghlUserId] || { total: 0, worked: 0, won: 0, lost: 0, revenue: 0 };
-    const convRate = stats.total > 0 ? (stats.won / stats.total) * 100 : 0;
-    const targetRevenue = targetMap.get(u.ghlUserId) ?? 50000;
-    const targetProgress = targetRevenue > 0 ? Math.min(135, Math.round((stats.revenue / targetRevenue) * 100)) : 0;
+    const monthStats = agentMonthOppMap[u.ghlUserId] || { total: 0, won: 0, lost: 0, revenue: 0 };
+    const openStats = agentOpenMap[u.ghlUserId] || { count: 0, value: 0 };
 
-    let pace = 'On Track';
-    if (targetProgress >= 100) pace = 'Exceeded 🎉';
-    else if (targetProgress >= 70) pace = 'Excellent 🔥';
-    else if (targetProgress < 50) pace = 'Needs Boost ⚠️';
+    const convRate = stats.total > 0 ? (stats.won / stats.total) * 100 : 0;
+    const monthConvRate = monthStats.total > 0 ? (monthStats.won / monthStats.total) * 100 : 0;
+
+    const targetRevenue = targetMap.get(u.ghlUserId) ?? 50000;
+    // Accurate target progress based on current month's revenue won
+    const targetProgress = targetRevenue > 0 ? Math.min(200, Math.round((monthStats.revenue / targetRevenue) * 100)) : 0;
+
+    let pace = 'On Track ⚡';
+    if (targetProgress >= 100) {
+      pace = 'Exceeded 🏆';
+    } else if (targetProgress >= monthExpectedProgress + 10) {
+      pace = 'Ahead 🚀';
+    } else if (targetProgress >= monthExpectedProgress - 10) {
+      pace = 'On Track ⚡';
+    } else if (targetProgress >= monthExpectedProgress * 0.4) {
+      pace = 'Behind ⚠️';
+    } else {
+      pace = 'Needs Boost 🔥';
+    }
+
+    const projectedRevenue = currentDay > 0 ? Math.round((monthStats.revenue / currentDay) * daysInMonth) : 0;
 
     return {
       id: u.ghlUserId,
@@ -731,11 +854,33 @@ export async function getCommandCenterKpis(filters: KpiFilterOptions): Promise<C
       bookingsToday: agentBookingsTodayMap[u.ghlUserId] || 0,
       isLive: true,
       stageBreakdown: agentStageBreakdownMap[u.ghlUserId] || {},
+      monthLeads: monthStats.total,
+      monthWon: monthStats.won,
+      monthLost: monthStats.lost,
+      monthRevenue: monthStats.revenue,
+      monthConversion: `${monthConvRate.toFixed(1)}%`,
+      monthExpectedProgress,
+      projectedRevenue,
+      openDeals: openStats.count,
+      pipelineValue: openStats.value,
+      rank: 1,
+      currentDay,
+      daysInMonth,
     };
   });
 
-  // Sort agents by total leads or revenue
-  agents.sort((a, b) => b.leads - a.leads);
+  // Calculate ranks based on month won revenue, then won deals, then leads
+  const ranked = [...agents].sort((a, b) => {
+    if (b.monthRevenue !== a.monthRevenue) return b.monthRevenue - a.monthRevenue;
+    if (b.monthWon !== a.monthWon) return b.monthWon - a.monthWon;
+    return b.monthLeads - a.monthLeads;
+  });
+  ranked.forEach((ag, idx) => {
+    ag.rank = idx + 1;
+  });
+
+  // Sort agents: default by month revenue (highest performer first)
+  agents.sort((a, b) => (b.monthRevenue !== a.monthRevenue ? b.monthRevenue - a.monthRevenue : b.monthLeads - a.monthLeads));
 
   // 5. Pipeline Stages & Velocity
   const activePipeline = selectedPipelineIdNum
